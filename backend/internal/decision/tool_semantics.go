@@ -10,8 +10,11 @@ func evaluateToolSemantic(req api.DecisionRequest, chain ChainSummary) (api.Arbi
 	switch {
 	case hasAnyString(view.CommandFlags, "download_execute"):
 		return toolSemanticResult("L4", "deny", 100, "tool.semantic.fetch_execute", "fetch_execute", "tool fetches remote code and executes it"), true
+	case isLynxGuardianDisableOrRemoval(view):
+		return toolSemanticResult("L4", "deny", 100, "tool.semantic.lynx_guardian_disable", "plugin_integrity", "tool disables, removes, or deactivates Lynx Guardian"), true
 	case hasAnyString(view.PathKinds, "plugin_self", "openclaw_config") &&
-		(hasAnyString(view.OperationFamilies, "write", "delete", "move", "chmod") || hasAnyString(view.CommandFlags, "config_disable")):
+		(hasAnyString(view.OperationFamilies, "write", "delete", "move", "chmod") || hasAnyString(view.CommandFlags, "config_disable")) &&
+		!isAllowedOpenClawUpgradeMaintenance(req, view):
 		return toolSemanticResult("L4", "deny", 100, "tool.semantic.self_protection_tamper", "self_protection_tamper", "tool mutates Lynx Guardian or OpenClaw safety configuration"), true
 	case hasAnyString(view.SourceKinds, "secret") && hasAnyString(view.SinkKinds, "external_network"):
 		return toolSemanticResult("L4", "deny", 100, "tool.semantic.secret_external_send", "secret_external_send", "tool sends secret or credential material to an external sink"), true

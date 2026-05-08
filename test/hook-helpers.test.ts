@@ -104,6 +104,28 @@ describe("hook helper modules", () => {
     });
   });
 
+  it("trusts exact OpenClaw startup protected reads without plugin subsystem context", () => {
+    const paths = [
+      "/home/node/.openclaw/workspace/memory/2026-05-08.md",
+      "/home/node/.openclaw/workspace/IDENTITY.md",
+      "/home/node/.openclaw/skills/lynx-guardian-lesson/SKILL.md",
+    ];
+
+    for (const path of paths) {
+      expect(
+        buildGuardContext(
+          {},
+          { toolName: "read", params: { path } },
+          {
+            requesterId: "openclaw-control-ui",
+            channelId: "webchat",
+            messageProvider: "webchat",
+          },
+        ).trustedInternalProtectedRead,
+      ).toBe(true);
+    }
+  });
+
   it("redacts string and block outputs in place", () => {
     const event = {
       output: "secret",

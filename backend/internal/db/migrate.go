@@ -35,6 +35,9 @@ func Migrate(database *sql.DB) error {
 	if err := ensureTokenUsageSourceTypeColumn(database); err != nil {
 		return err
 	}
+	if err := ensureTokenUsageSourceOriginColumn(database); err != nil {
+		return err
+	}
 	if err := ensureQARecordLinkColumns(database); err != nil {
 		return err
 	}
@@ -141,6 +144,22 @@ func ensureTokenUsageSourceTypeColumn(database *sql.DB) error {
 		UPDATE token_usage
 		SET source_type = CASE WHEN is_estimated = 1 THEN 'estimated' ELSE 'actual' END
 		WHERE source_type = 'actual'
+	`)
+	return err
+}
+
+func ensureTokenUsageSourceOriginColumn(database *sql.DB) error {
+	if err := ensureColumn(
+		database,
+		"token_usage",
+		"source_origin",
+		"TEXT NOT NULL DEFAULT 'hook' CHECK (source_origin IN ('hook', 'transcript'))",
+	); err != nil {
+		return err
+	}
+	_, err := database.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_token_usage_origin_occurred_at
+		ON token_usage (source_origin, occurred_at DESC)
 	`)
 	return err
 }

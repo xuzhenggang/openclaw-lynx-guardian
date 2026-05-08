@@ -125,6 +125,8 @@ type EvidenceItem struct {
 	Severity   EventSeverity  `json:"severity"`
 	ScoreDelta float64        `json:"scoreDelta"`
 	Source     EvidenceSource `json:"source"`
+	ExpiresAt  string         `json:"expiresAt,omitempty"`
+	Status     string         `json:"status,omitempty"`
 }
 
 type ArbiterResult struct {
@@ -190,6 +192,9 @@ type DecisionResponse struct {
 type ChainSummary struct {
 	ChainID          string               `json:"chainId"`
 	SessionKey       string               `json:"sessionKey"`
+	Status           string               `json:"status,omitempty"`
+	UpdatedAt        string               `json:"updatedAt,omitempty"`
+	ExpiresAt        string               `json:"expiresAt,omitempty"`
 	RecentIdentity   []string             `json:"recentIdentity"`
 	RecentSensitive  []string             `json:"recentSensitive"`
 	RecentDenials    []string             `json:"recentDenials"`

@@ -158,7 +158,10 @@ func classifyToolPathKinds(text string) []string {
 	if containsAny(text, "system prompt", "developer instruction", "prompt.md", "prompts/", "\\prompts\\") {
 		kinds = append(kinds, "prompt_file")
 	}
-	if containsAny(text, "/etc/", "/usr/bin", "/bin/", "c:/windows", "c:\\windows", "system32") {
+	if containsAny(text,
+		"/etc/", "/usr/bin", "/bin/", "c:/windows", "c:\\windows", "system32",
+		"~/.bashrc", "/.bashrc", "~/.bash_profile", "/.bash_profile", "~/.profile", "/.profile", "~/.zshrc", "/.zshrc",
+	) {
 		kinds = append(kinds, "system_path")
 	}
 	if containsAny(text, "src/", "src\\", "backend/", "backend\\", "frontend/", "frontend\\", "package.json", "go.mod", "./internal/") {
@@ -306,6 +309,7 @@ var knownToolExecutables = []string{
 	"bash",
 	"cat",
 	"cmd",
+	"cp",
 	"curl",
 	"del",
 	"dir",
@@ -321,6 +325,7 @@ var knownToolExecutables = []string{
 	"rm",
 	"sh",
 	"tail",
+	"tee",
 	"wget",
 }
 

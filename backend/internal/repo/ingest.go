@@ -167,6 +167,7 @@ type TokenUsageData struct {
 	Provider           string
 	Model              string
 	SourceType         *string
+	SourceOrigin       *string
 	InputTokens        *int64
 	OutputTokens       *int64
 	CacheReadTokens    *int64
@@ -637,10 +638,10 @@ func (r *IngestRepository) PersistTokenUsage(exec sqlExecer, item TokenUsageItem
 		`
 		INSERT OR IGNORE INTO token_usage (
 			usage_event_id, qa_record_id, session_key, run_id, agent_id, provider, model,
-			source_type, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+			source_type, source_origin, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 			total_tokens, assistant_text_count, is_estimated, occurred_at, ingested_at,
 			payload_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 		item.Data.UsageEventID,
 		item.Data.QARecordID,
@@ -650,6 +651,7 @@ func (r *IngestRepository) PersistTokenUsage(exec sqlExecer, item TokenUsageItem
 		item.Data.Provider,
 		item.Data.Model,
 		normalizeTokenSourceType(item.Data.SourceType, item.Data.IsEstimated),
+		normalizeTokenSourceOrigin(item.Data.SourceOrigin),
 		zeroIfNil(item.Data.InputTokens),
 		zeroIfNil(item.Data.OutputTokens),
 		zeroIfNil(item.Data.CacheReadTokens),
@@ -678,6 +680,16 @@ func normalizeTokenSourceType(sourceType *string, isEstimated *bool) string {
 		return "estimated"
 	}
 	return "actual"
+}
+
+func normalizeTokenSourceOrigin(sourceOrigin *string) string {
+	if sourceOrigin != nil {
+		switch *sourceOrigin {
+		case "hook", "transcript":
+			return *sourceOrigin
+		}
+	}
+	return "hook"
 }
 
 func unixMillisRFC3339(value int64) string {

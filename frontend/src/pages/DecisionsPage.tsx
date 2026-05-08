@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import type { DecisionResponse, RiskLevel, ScoreBreakdown } from "@lynx/local-console-shared";
+import type { DecisionResponse, EvidenceItem, RiskLevel, ScoreBreakdown } from "@lynx/local-console-shared";
 import { Button, Card, Input, Select, Typography } from "antd";
 
 import { listDecisions, type DecisionListQuery } from "../api/decisions";
@@ -109,6 +109,10 @@ function collectScoreBreakdown(decision: DecisionResponse): ScoreBreakdown[] {
   return decision.arbiters.flatMap((arbiter) => arbiter.scoreBreakdown ?? []);
 }
 
+function collectEvidence(decision: DecisionResponse): EvidenceItem[] {
+  return decision.arbiters.flatMap((arbiter) => arbiter.evidence ?? []);
+}
+
 function formatScoreDelta(delta: number): string {
   return delta >= 0 ? `+${formatInteger(delta)}` : formatInteger(delta);
 }
@@ -143,6 +147,20 @@ function collectMatchedRules(decision: DecisionResponse): string[] {
 function formatMatchedRules(decision: DecisionResponse): string {
   const rules = collectMatchedRules(decision);
   return rules.length > 0 ? rules.join(", ") : "暂无";
+}
+
+function formatEvidenceStatus(decision: DecisionResponse): string {
+  const evidence = collectEvidence(decision).filter((item) => item.status || item.expiresAt);
+  if (evidence.length === 0) {
+    return "None";
+  }
+  return evidence
+    .map((item) => {
+      const status = item.status ?? "unknown";
+      const expiresAt = item.expiresAt ? `, expires ${item.expiresAt}` : "";
+      return `${item.id}: ${status}${expiresAt}`;
+    })
+    .join("\n");
 }
 
 function formatApprovalState(decision: DecisionResponse): string {
@@ -458,6 +476,7 @@ export function DecisionsPage() {
                   { label: "获胜仲裁器", value: selectedDecision.winningArbiter },
                   { label: "命中模块", value: formatMatchedModulesText(selectedDecision) },
                   { label: "Matched Rules", value: formatMatchedRules(selectedDecision) },
+                  { label: "Evidence Status", value: formatEvidenceStatus(selectedDecision) },
                   { label: "Score Breakdown", value: formatScoreBreakdown(collectScoreBreakdown(selectedDecision)) },
                 ].map((field) => (
                   <div key={field.label} className="detail-panel__field">

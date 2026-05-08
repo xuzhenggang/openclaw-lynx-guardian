@@ -235,6 +235,9 @@ var toolEvidenceRules = []evidenceRule{
 		HardAction:    "deny",
 		Matcher: func(req api.DecisionRequest, _ string) bool {
 			return toolRuleMatches(req, ChainSummary{}, func(view toolRequestView) bool {
+				if isAllowedOpenClawUpgradeMaintenance(req, view) {
+					return false
+				}
 				return hasAnyString(view.PathKinds, "plugin_self", "openclaw_config") &&
 					(hasAnyString(view.OperationFamilies, "write", "delete", "move", "chmod") ||
 						hasAnyString(view.CommandFlags, "config_disable"))

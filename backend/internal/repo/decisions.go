@@ -28,6 +28,14 @@ type DecisionRepository struct {
 	db *sql.DB
 }
 
+const decisionChainFreshnessWindow = 30 * time.Minute
+
+type taintLabelForDecision struct {
+	Label     string
+	ExpiresAt string
+	Status    string
+}
+
 func NewDecisionRepository(db *sql.DB) *DecisionRepository {
 	return &DecisionRepository{db: db}
 }
@@ -46,12 +54,23 @@ func (r *DecisionRepository) LoadChainSummaryForDecision(ctx context.Context, re
 	if err != nil {
 		return api.ChainSummary{}, nil, err
 	}
+	labelValues := make([]string, 0, len(taintLabels))
+	labelDetails := make([]map[string]any, 0, len(taintLabels))
 	for _, label := range taintLabels {
-		summary.RecentTaintReads = appendUniqueString(summary.RecentTaintReads, label, 12)
+		summary.RecentTaintReads = appendUniqueString(summary.RecentTaintReads, label.Label, 12)
+		labelValues = append(labelValues, label.Label)
+		labelDetails = append(labelDetails, map[string]any{
+			"label":     label.Label,
+			"expiresAt": label.ExpiresAt,
+			"status":    label.Status,
+		})
 	}
 	var taintSummary map[string]any
-	if len(taintLabels) > 0 {
-		taintSummary = map[string]any{"recentReads": taintLabels}
+	if len(labelValues) > 0 {
+		taintSummary = map[string]any{
+			"recentReads":       labelValues,
+			"recentReadDetails": labelDetails,
+		}
 	}
 	return summary, taintSummary, nil
 }
@@ -199,16 +218,23 @@ func (r *DecisionRepository) lookupChainSummaryForDecision(ctx context.Context, 
 	if len(where) == 0 {
 		return api.ChainSummary{}, nil
 	}
+	referenceTime := decisionReferenceTime(req)
+	where = append(where,
+		"status = 'active'",
+		"(ended_at IS NULL OR ended_at = '')",
+		"(updated_at IS NULL OR updated_at = '' OR updated_at >= ?)",
+	)
+	args = append(args, referenceTime.Add(-decisionChainFreshnessWindow).UTC().Format(time.RFC3339Nano))
 
-	var chainID, sessionKey, summaryJSON, activeGrantID, pendingApprovalID string
+	var chainID, sessionKey, status, summaryJSON, activeGrantID, pendingApprovalID, updatedAt string
 	err := r.db.QueryRowContext(ctx, `
-		SELECT chain_id, session_key, summary_json, active_grant_id, pending_approval_id
+		SELECT chain_id, session_key, status, summary_json, active_grant_id, pending_approval_id, updated_at
 		FROM chains
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, updated_at DESC, chain_id DESC
 		LIMIT 1`,
 		args...,
-	).Scan(&chainID, &sessionKey, &summaryJSON, &activeGrantID, &pendingApprovalID)
+	).Scan(&chainID, &sessionKey, &status, &summaryJSON, &activeGrantID, &pendingApprovalID, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return api.ChainSummary{}, nil
 	}
@@ -220,6 +246,9 @@ func (r *DecisionRepository) lookupChainSummaryForDecision(ctx context.Context, 
 	unmarshalJSONText(summaryJSON, &summary)
 	summary.ChainID = nonEmptyString(summary.ChainID, chainID)
 	summary.SessionKey = nonEmptyString(summary.SessionKey, sessionKey)
+	summary.Status = nonEmptyString(summary.Status, status)
+	summary.UpdatedAt = nonEmptyString(summary.UpdatedAt, updatedAt)
+	summary.ExpiresAt = nonEmptyString(summary.ExpiresAt, chainEvidenceExpiresAt(updatedAt))
 	summary.ActiveGrantID = nonEmptyString(summary.ActiveGrantID, activeGrantID)
 	summary.PendingApproval = nonEmptyString(summary.PendingApproval, pendingApprovalID)
 	return summary, nil
@@ -245,13 +274,14 @@ func (r *DecisionRepository) lookupActiveGrantIDForDecision(ctx context.Context,
 	return grantID, err
 }
 
-func (r *DecisionRepository) lookupTaintLabelsForDecision(ctx context.Context, req api.DecisionRequest, chainID string, sessionKey string) ([]string, error) {
+func (r *DecisionRepository) lookupTaintLabelsForDecision(ctx context.Context, req api.DecisionRequest, chainID string, sessionKey string) ([]taintLabelForDecision, error) {
 	sessionKey = nonEmptyString(sessionKey, req.SessionKey)
 	if chainID == "" && sessionKey == "" {
 		return nil, nil
 	}
+	referenceTime := decisionReferenceTime(req).UTC().Format(time.RFC3339Nano)
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT label
+		SELECT label, COALESCE(expires_at, '')
 		FROM taint_labels
 		WHERE ((? != '' AND chain_id = ?) OR (? != '' AND session_key = ?))
 		  AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)
@@ -261,22 +291,41 @@ func (r *DecisionRepository) lookupTaintLabelsForDecision(ctx context.Context, r
 		chainID,
 		sessionKey,
 		sessionKey,
-		time.Now().UTC().Format(time.RFC3339Nano),
+		referenceTime,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	labels := make([]string, 0)
+	labels := make([]taintLabelForDecision, 0)
 	for rows.Next() {
-		var label string
-		if err := rows.Scan(&label); err != nil {
+		var label, expiresAt string
+		if err := rows.Scan(&label, &expiresAt); err != nil {
 			return nil, err
 		}
-		labels = appendUniqueString(labels, label, 12)
+		labels = append(labels, taintLabelForDecision{
+			Label:     label,
+			ExpiresAt: expiresAt,
+			Status:    "active",
+		})
 	}
 	return labels, rows.Err()
+}
+
+func decisionReferenceTime(req api.DecisionRequest) time.Time {
+	if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.CreatedAt)); err == nil {
+		return parsed.UTC()
+	}
+	return time.Now().UTC()
+}
+
+func chainEvidenceExpiresAt(updatedAt string) string {
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(updatedAt))
+	if err != nil {
+		return ""
+	}
+	return parsed.Add(decisionChainFreshnessWindow).UTC().Format(time.RFC3339Nano)
 }
 
 func (r *DecisionRepository) InsertDecision(ctx context.Context, req api.DecisionRequest, decision api.DecisionResponse) error {

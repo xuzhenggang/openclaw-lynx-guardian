@@ -75,6 +75,7 @@ func (evidenceArbiter) Evaluate(
 
 func chainEvidenceItems(chain ChainSummary) []api.EvidenceItem {
 	items := make([]api.EvidenceItem, 0)
+	chainStatus := activeEvidenceStatus(chain.Status)
 	if len(chain.RecentDenials) > 0 {
 		items = append(items, api.EvidenceItem{
 			ID:         "chain.recent_denial",
@@ -84,6 +85,8 @@ func chainEvidenceItems(chain ChainSummary) []api.EvidenceItem {
 			Severity:   "warn",
 			ScoreDelta: 30,
 			Source:     "chain",
+			ExpiresAt:  chain.ExpiresAt,
+			Status:     chainStatus,
 		})
 	}
 	if len(chain.RecentEvasions) > 0 {
@@ -95,6 +98,8 @@ func chainEvidenceItems(chain ChainSummary) []api.EvidenceItem {
 			Severity:   "warn",
 			ScoreDelta: 40,
 			Source:     "chain",
+			ExpiresAt:  chain.ExpiresAt,
+			Status:     chainStatus,
 		})
 	}
 	if chain.PendingApproval != "" {
@@ -106,6 +111,8 @@ func chainEvidenceItems(chain ChainSummary) []api.EvidenceItem {
 			Severity:   "warn",
 			ScoreDelta: 30,
 			Source:     "chain",
+			ExpiresAt:  chain.ExpiresAt,
+			Status:     chainStatus,
 		})
 	}
 	if chain.ActiveGrantID != "" {
@@ -117,10 +124,13 @@ func chainEvidenceItems(chain ChainSummary) []api.EvidenceItem {
 			Severity:   "info",
 			ScoreDelta: 0,
 			Source:     "chain",
+			ExpiresAt:  chain.ExpiresAt,
+			Status:     chainStatus,
 		})
 	}
 	if len(chain.RecentTaintReads) > 0 || len(chain.TaintSummary) > 0 {
 		value := lastOrFallback(chain.RecentTaintReads, "taint_summary")
+		taintStatus, taintExpiresAt := taintEvidenceStatus(chain, value)
 		items = append(items, api.EvidenceItem{
 			ID:         "taint.recent_sensitive_read",
 			Module:     "taint_context",
@@ -129,9 +139,51 @@ func chainEvidenceItems(chain ChainSummary) []api.EvidenceItem {
 			Severity:   "warn",
 			ScoreDelta: 30,
 			Source:     "taint",
+			ExpiresAt:  taintExpiresAt,
+			Status:     taintStatus,
 		})
 	}
 	return items
+}
+
+func activeEvidenceStatus(status string) string {
+	if status == "" {
+		return "active"
+	}
+	return status
+}
+
+func taintEvidenceStatus(chain ChainSummary, label string) (string, string) {
+	details, ok := chain.TaintSummary["recentReadDetails"]
+	if !ok {
+		return "active", ""
+	}
+	for _, detail := range normalizeTaintDetailList(details) {
+		if fmt.Sprint(detail["label"]) != label {
+			continue
+		}
+		status, _ := detail["status"].(string)
+		expiresAt, _ := detail["expiresAt"].(string)
+		return activeEvidenceStatus(status), expiresAt
+	}
+	return "active", ""
+}
+
+func normalizeTaintDetailList(value any) []map[string]any {
+	switch typed := value.(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		out := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if detail, ok := item.(map[string]any); ok {
+				out = append(out, detail)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func chainEvidenceReason(ruleID string) string {
@@ -239,10 +291,12 @@ func evidenceRulesFor(req api.DecisionRequest) []evidenceRule {
 	case "install":
 		rules = append(rules, installEvidenceRules...)
 	case "tool_call":
+		rules = append(rules, guardRegressionToolEvidenceRules...)
 		rules = append(rules, toolEvidenceRules...)
 	case "tool_result", "assistant_output", "outbound_message":
 		rules = append(rules, outputEvidenceRules...)
 	default:
+		rules = append(rules, guardRegressionInputEvidenceRules...)
 		rules = append(rules, inputEvidenceRules...)
 	}
 	if providerRule, ok := providerContentSafetyRule(req); ok {

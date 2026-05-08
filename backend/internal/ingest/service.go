@@ -710,6 +710,7 @@ func parseTokenUsage(base rawItemBase) (repo.TokenUsageItem, error) {
 		Provider           string         `json:"provider"`
 		Model              string         `json:"model"`
 		SourceType         *string        `json:"sourceType"`
+		SourceOrigin       *string        `json:"sourceOrigin"`
 		InputTokens        *int64         `json:"inputTokens"`
 		OutputTokens       *int64         `json:"outputTokens"`
 		CacheReadTokens    *int64         `json:"cacheReadTokens"`
@@ -743,6 +744,7 @@ func parseTokenUsage(base rawItemBase) (repo.TokenUsageItem, error) {
 			Provider:           data.Provider,
 			Model:              data.Model,
 			SourceType:         cleanStringPtr(data.SourceType),
+			SourceOrigin:       cleanStringPtr(data.SourceOrigin),
 			InputTokens:        data.InputTokens,
 			OutputTokens:       data.OutputTokens,
 			CacheReadTokens:    data.CacheReadTokens,

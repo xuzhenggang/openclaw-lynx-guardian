@@ -383,7 +383,7 @@ func (r *QARecordsRepository) relatedTokenUsages(qaRecordID string) ([]map[strin
 	rows, err := r.db.Query(`
 		SELECT
 			usage_event_id, qa_record_id, session_key, run_id, agent_id, provider, model,
-			source_type, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+			source_type, source_origin, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 			total_tokens, assistant_text_count, is_estimated, occurred_at
 		FROM token_usage
 		WHERE qa_record_id = ?
@@ -399,7 +399,7 @@ func (r *QARecordsRepository) relatedTokenUsages(qaRecordID string) ([]map[strin
 		var row tokenUsageRow
 		if err := rows.Scan(
 			&row.UsageEventID, &row.QARecordID, &row.SessionKey, &row.RunID, &row.AgentID,
-			&row.Provider, &row.Model, &row.SourceType, &row.InputTokens, &row.OutputTokens,
+			&row.Provider, &row.Model, &row.SourceType, &row.SourceOrigin, &row.InputTokens, &row.OutputTokens,
 			&row.CacheReadTokens, &row.CacheWriteTokens, &row.TotalTokens,
 			&row.AssistantTextCount, &row.IsEstimated, &row.OccurredAt,
 		); err != nil {

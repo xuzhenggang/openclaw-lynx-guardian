@@ -157,6 +157,9 @@ CREATE TABLE IF NOT EXISTS token_usage (
   source_type TEXT NOT NULL DEFAULT 'actual' CHECK (
     source_type IN ('actual', 'estimated', 'unavailable')
   ),
+  source_origin TEXT NOT NULL DEFAULT 'hook' CHECK (
+    source_origin IN ('hook', 'transcript')
+  ),
   input_tokens INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
   output_tokens INTEGER NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
   cache_read_tokens INTEGER NOT NULL DEFAULT 0 CHECK (cache_read_tokens >= 0),

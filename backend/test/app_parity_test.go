@@ -383,6 +383,13 @@ func TestQueryRoutesServeIngestedFixtureData(t *testing.T) {
 	tokenItems := expectItems(t, tokenUsage, http.StatusOK)
 	expectString(t, tokenItems[0], "usageEventId", "usage-secondary")
 	expectBool(t, tokenItems[0], "isEstimated", true)
+	expectString(t, tokenItems[0], "sourceOrigin", "transcript")
+
+	actualTokenUsage := doJSON(t, handler, http.MethodGet, "/lynx/tokens/usage?limit=5&provider=openai&isEstimated=false", nil, false)
+	actualTokenItems := expectItems(t, actualTokenUsage, http.StatusOK)
+	expectString(t, actualTokenItems[0], "usageEventId", "usage-primary")
+	expectBool(t, actualTokenItems[0], "isEstimated", false)
+	expectString(t, actualTokenItems[0], "sourceOrigin", "hook")
 
 	tokenSummary := doJSON(t, handler, http.MethodGet, "/lynx/tokens/summary?provider=openai", nil, false)
 	tokenSummaryBody := decodeObjectStatus(t, tokenSummary, http.StatusOK)
@@ -820,6 +827,7 @@ func fixtureItems() []any {
 				"totalTokens":        120,
 				"assistantTextCount": 1,
 				"isEstimated":        true,
+				"sourceOrigin":       "transcript",
 			},
 		},
 	}

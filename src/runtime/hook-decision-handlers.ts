@@ -126,6 +126,7 @@ export async function handleBeforeToolCallDecision(
     toolName: event.toolName,
     toolArgs: event.params,
     targetUri: JSON.stringify(event.params ?? {}),
+    providerSafety: toolProviderSafety(event, ctx),
     scriptEvidence: eventWithEvidence.scriptEvidence,
     resourceEvidence: eventWithEvidence.resourceEvidence,
     policyVersion: eventWithEvidence.policyVersion,
@@ -352,6 +353,36 @@ function inputContext(hook: string, content: string, ctx: EventContext): Decisio
     requesterId: ctx.userId ?? ctx.senderId,
     content,
   });
+}
+
+function toolProviderSafety(event: ToolCallEvent, ctx: EventContext): Record<string, unknown> | undefined {
+  const context = ctx as EventContext & {
+    promptText?: unknown;
+    requesterId?: unknown;
+    channelProfile?: unknown;
+    channel?: unknown;
+    source?: unknown;
+    trustedInternalProtectedRead?: unknown;
+  };
+  const promptText = optionalString(context.promptText ?? (event as any)?.promptText);
+  const requesterId = optionalString(context.requesterId ?? ctx.userId ?? ctx.senderId);
+  const channelProfile = optionalString(context.channelProfile ?? context.channel ?? ctx.channelId ?? context.source);
+  const trustedInternalProtectedRead = context.trustedInternalProtectedRead === true;
+  const providerSafety: Record<string, unknown> = {};
+  if (promptText) {
+    providerSafety.originalPromptText = promptText;
+  }
+  if (requesterId) {
+    providerSafety.requesterId = requesterId;
+  }
+  if (channelProfile) {
+    providerSafety.channelProfile = channelProfile;
+  }
+  if (trustedInternalProtectedRead) {
+    providerSafety.trustedInternalProtectedRead = true;
+    providerSafety.trustedInternalReadKind = "openclaw_startup_context";
+  }
+  return Object.keys(providerSafety).length > 0 ? providerSafety : undefined;
 }
 
 function optionalString(value: unknown): string | undefined {

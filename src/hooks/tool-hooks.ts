@@ -432,7 +432,12 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
       };
     };
     if (decisionBroker) {
-      const decisionResult = await handleBeforeToolCallDecision(decisionBroker, decisionOnlyEvent, ctx);
+      const decisionResult = await handleBeforeToolCallDecision(decisionBroker, decisionOnlyEvent, {
+        ...ctx,
+        promptText: runApprovalContext?.promptText,
+        requesterId: effectiveRunApprovalContext.requesterId ?? effectiveRunApprovalContext.requesterOuId,
+        channelProfile: effectiveRunApprovalContext.channelProfile,
+      } as any);
       if (decisionResult?.block) {
         let blockReason = decisionResult.blockReason;
         if (hasDenyingScriptEvidence(scriptEvidence)) {
@@ -681,6 +686,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
           verifiedOwner: effectiveRunApprovalContext.requesterOuId
             ? localApprovalApproverOuIds.includes(effectiveRunApprovalContext.requesterOuId)
             : ctx?.verifiedOwner,
+          promptText: runApprovalContext?.promptText,
           managedLynxCheckRun: Boolean(activeManagedLynxCheckRun),
           managedLynxCheckPreauthorized,
         };

@@ -142,6 +142,8 @@ export interface EvidenceItem {
   severity: EventSeverity;
   scoreDelta: number;
   source: EvidenceSource;
+  expiresAt?: string;
+  status?: "active" | "expired" | "cleared" | string;
 }
 
 export interface ArbiterResult {

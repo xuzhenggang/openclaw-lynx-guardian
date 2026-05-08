@@ -126,6 +126,8 @@ export function resolveRuntimeEnvironmentProfile(cwd: string): EnvironmentProfil
 const TRUSTED_INTERNAL_PROTECTED_READ_PATTERNS = [
   /[\\/]openclaw[\\/]skills[\\/]healthcheck[\\/]SKILL\.md$/i,
   /[\\/]\.openclaw[\\/]workspace[\\/]memory[\\/]\d{4}-\d{2}-\d{2}\.md$/i,
+  /[\\/]\.openclaw[\\/]workspace[\\/](?:SOUL|IDENTITY|USER|AGENTS|TOOLS|SHIELD|SKILL|MEMORY)\.md$/i,
+  /[\\/]\.openclaw[\\/]skills[\\/][^\\/]+[\\/]SKILL\.md$/i,
 ];
 
 const REMOVED_MANAGED_LYNX_CHECK_SKILL_PATTERNS = [
@@ -245,11 +247,6 @@ function isTrustedInternalProtectedRead(event: any, ctx: any): boolean {
     return true;
   }
 
-  const subsystem = normalizeString(ctx?.subsystem).toLowerCase();
-  if (subsystem !== "plugins") {
-    return false;
-  }
-
   return TRUSTED_INTERNAL_PROTECTED_READ_PATTERNS.some((pattern) => pattern.test(canonicalPath));
 }
 
@@ -317,6 +314,7 @@ export function isTrustedManagedLynxCheckReportText(value: unknown): boolean {
 
 export function buildGuardContext(config: any, event: any, ctx: any): GuardContext {
   const ownerVerification = config?.selfSafetyGuard?.ownerVerification ?? {};
+  const promptText = normalizeString(ctx?.promptText ?? event?.promptText);
   const requesterId = normalizeString(
     event?.sender?.sender_id?.open_id
     ?? event?.sender?.id
@@ -360,6 +358,7 @@ export function buildGuardContext(config: any, event: any, ctx: any): GuardConte
     verifiedOwner,
     requesterId,
     channel,
+    ...(promptText ? { promptText } : {}),
     trustedInternalProtectedRead: isTrustedInternalProtectedRead(event, ctx),
     trustedManagedLynxCheckToolCall: isTrustedManagedLynxCheckToolCall(event, ctx),
     trustedManagedLynxCheckOutput: ctx?.managedLynxCheckRun === true && isTrustedManagedLynxCheckReportText(event),

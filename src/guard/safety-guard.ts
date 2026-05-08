@@ -76,6 +76,7 @@ export interface GuardContext {
   verifiedOwner?: boolean;
   requesterId?: string;
   channel?: string;
+  promptText?: string;
   trustedInternalProtectedRead?: boolean;
   trustedManagedLynxCheckToolCall?: boolean;
   trustedManagedLynxCheckOutput?: boolean;
@@ -662,6 +663,71 @@ function detectOpenClawMemorySessionArtifactAccess(text: string, toolName?: stri
     || OPENCLAW_MEMORY_SESSION_MUTATION_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+const OPENCLAW_WORKSPACE_MEMORY_DATE_FILE_PATTERN =
+  /(?:^|[\\/])\.openclaw[\\/]workspace[\\/]memory[\\/]\d{4}-\d{2}-\d{2}\.md(?:$|[\s"'`;),])/i;
+
+const EXPLICIT_MEMORY_SESSION_EXPORT_PATTERNS: RegExp[] = [
+  /\b(?:export|dump|exfiltrate|leak|upload|send|archive|clear|erase|wipe|purge|reset|delete|remove|show|print|list\s+all|download)\b/i,
+  /(?:导出|转储|泄露|上传|发送|打包|清除|清空|删除|展示|打印|列出全部)/i,
+];
+
+function isPlainOpenClawWorkspaceMemoryDateRead(text: string): boolean {
+  const normalized = normalizeGuardPath(text);
+  return OPENCLAW_WORKSPACE_MEMORY_DATE_FILE_PATTERN.test(normalized)
+    && PROTECTED_FILE_READ_PATTERNS.some((pattern) => pattern.test(text))
+    && !EXPLICIT_MEMORY_SESSION_EXPORT_PATTERNS.some((pattern) => pattern.test(text))
+    && !OPENCLAW_MEMORY_SESSION_MUTATION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function isPlainProtectedCoreFileRead(text: string, access: ProtectedFileAccessResult): boolean {
+  if (access.operation !== "read" || access.matchedFiles.length === 0) {
+    return false;
+  }
+  if (detectIdentityClaims(text).detected) {
+    return false;
+  }
+  if (PROTECTED_FILE_WRITE_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  if (EXPLICIT_MEMORY_SESSION_EXPORT_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  if (isPlainOpenClawWorkspaceMemoryDateRead(text)) {
+    return true;
+  }
+  return access.matchedFiles.length === 1 && access.matchedFiles[0] === "IDENTITY.md";
+}
+
+const SYSTEM_STARTUP_CONFIG_PATH_PATTERNS: RegExp[] = [
+  /(?:^|[\s"'=:[(])~[\\/]\.bashrc(?:$|[\s"'`;),])/i,
+  /(?:^|[\\/])home[\\/]node[\\/]\.bashrc(?:$|[\s"'`;),])/i,
+  /(?:^|[\s"'=:[(])~[\\/]\.bash_profile(?:$|[\s"'`;),])/i,
+  /(?:^|[\s"'=:[(])~[\\/]\.profile(?:$|[\s"'`;),])/i,
+  /(?:^|[\s"'=:[(])~[\\/]\.zshrc(?:$|[\s"'`;),])/i,
+  /(?:^|[\\/])etc[\\/]ssh[\\/]/i,
+  /(?:^|[\\/])etc[\\/]systemd[\\/]/i,
+  /(?:^|[\\/])etc[\\/](?:hosts|sudoers|passwd|shadow)(?:$|[\s"'`;),])/i,
+  /[A-Za-z]:[\\/]Windows[\\/]System32[\\/]drivers[\\/]etc[\\/]hosts\b/i,
+];
+
+const SYSTEM_STARTUP_CONFIG_MUTATION_PATTERNS: RegExp[] = [
+  ...PROTECTED_FILE_WRITE_PATTERNS,
+  /\b(?:Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|Rename-Item)\b/i,
+  /\b(?:rm|mv|cp|tee|del|erase)\b/i,
+  /(?:^|[^&])>>?/,
+];
+
+function detectSystemStartupConfigMutation(text: string, toolName?: string): boolean {
+  const normalized = normalizeGuardPath(text);
+  if (!SYSTEM_STARTUP_CONFIG_PATH_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+  const normalizedToolName = (toolName ?? "").trim().toLowerCase();
+  return normalizedToolName === "write"
+    || normalizedToolName === "edit"
+    || SYSTEM_STARTUP_CONFIG_MUTATION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 function detectOpenClawMemorySessionLeak(text: string): boolean {
   const normalized = normalizeGuardPath(text);
   if (OPENCLAW_MEMORY_SESSION_PATH_PATTERNS.some((pattern) => pattern.test(normalized))) {
@@ -824,6 +890,51 @@ function isTrustedOfficialLynxGuardianUpdateRestartToolCall(input: {
 
   return /\brestart\b[^\n\r]{0,60}\bopenclaw(?:\s+gateway)?\b/i.test(input.combined)
     || /\bopenclaw\b[^\n\r]{0,80}\bgateway\b[^\n\r]{0,20}\brestart\b/i.test(input.combined);
+}
+
+function hasOpenClawUpgradeMaintenanceIntent(text: string): boolean {
+  return /\b(?:upgrade|update|maintenance|bugfix|bug\s*fix|hotfix|release[/-]?v?\d|restart after update)\b/i.test(text)
+    && /\b(?:openclaw|lynx|guardian|gateway|plugin|openclaw-lynx-guardian)\b/i.test(text);
+}
+
+function isTrustedOpenClawUpgradeMaintenanceToolCall(input: {
+  toolName: string;
+  toolAction: string;
+  combined: string;
+  promptText?: string;
+}): boolean {
+  const text = `${input.combined} ${input.promptText ?? ""}`;
+  if (!hasOpenClawUpgradeMaintenanceIntent(text)) {
+    return false;
+  }
+  if (detectLynxGuardianDisableRequest(text) || /"enabled"\s*:\s*false|enabled\s*false|disabled\s*true/i.test(text)) {
+    return false;
+  }
+
+  const normalizedToolName = input.toolName.trim().toLowerCase();
+  const normalizedAction = input.toolAction.trim().toLowerCase();
+  if (normalizedToolName === "gateway" && /^config\.(?:patch|set|replace|update)$/i.test(normalizedAction)) {
+    return true;
+  }
+  if (
+    normalizedToolName === "gateway"
+    && /(?:^|\.)(?:restart)(?:$|\.)/i.test(normalizedAction)
+  ) {
+    return true;
+  }
+  if (
+    detectOpenClawAvailabilityControl(input.combined)
+    && !/\b(?:stop|shutdown|down|disable|deactivate)\b/i.test(input.combined)
+    && (
+      /\brestart\b/i.test(input.combined)
+      || /\/app\/dist\/index\.js\s+gateway\b/i.test(normalizeGuardPath(input.combined))
+    )
+  ) {
+    return true;
+  }
+  return /openclaw-lynx-guardian/i.test(input.combined)
+    && /openclaw\.plugin\.json/i.test(input.combined)
+    && MUTATING_TOOL_PATTERNS.some((pattern) => pattern.test(input.combined));
 }
 
 function detectProtectedFileAccess(text: string, toolName?: string): ProtectedFileAccessResult {
@@ -1424,7 +1535,8 @@ export function guardInput(text: string, sessionKey?: string, context?: GuardCon
   const earlyIdentityClaims = detectIdentityClaims(text);
   const earlyProtectedAccess = detectProtectedFileAccess(text);
   const earlySysprompt = detectSystemPromptExtraction(text);
-  if (earlySysprompt.detected) {
+  const earlyPlainProtectedRead = isPlainProtectedCoreFileRead(text, earlyProtectedAccess);
+  if (earlySysprompt.detected && !earlyPlainProtectedRead) {
     const instantModules = ["M2:system_prompt_extraction"];
     if (earlyProtectedAccess.matchedFiles.length > 0) {
       instantModules.push("M2:protected_file_access");
@@ -1449,7 +1561,8 @@ export function guardInput(text: string, sessionKey?: string, context?: GuardCon
   const identityClaims = detectIdentityClaims(text);
   const protectedAccess = detectProtectedFileAccess(text);
   const sysprompt = detectSystemPromptExtraction(text);
-  if (sysprompt.detected) {
+  const plainProtectedRead = isPlainProtectedCoreFileRead(text, protectedAccess);
+  if (sysprompt.detected && !plainProtectedRead) {
     const instantModules = ["M2:system_prompt_extraction"];
     if (protectedAccess.matchedFiles.length > 0) {
       instantModules.push("M2:protected_file_access");
@@ -1477,7 +1590,7 @@ export function guardInput(text: string, sessionKey?: string, context?: GuardCon
     return finalizeInputDecision(buildInstantDeny("M3:system_availability", "attempt to restart or stop OpenClaw"));
   }
 
-  if (detectOpenClawMemorySessionRequest(text)) {
+  if (detectOpenClawMemorySessionRequest(text) && !isPlainOpenClawWorkspaceMemoryDateRead(text)) {
     return finalizeInputDecision(buildInstantDeny("M2:memory_session_privacy", "attempt to access or clear OpenClaw memory/session records"));
   }
 
@@ -1531,7 +1644,7 @@ export function guardInput(text: string, sessionKey?: string, context?: GuardCon
   }
 
   // M2: 核心配置文件访问（openclaw 自身文件）
-  if (protectedAccess.matchedFiles.length > 0) {
+  if (protectedAccess.matchedFiles.length > 0 && !plainProtectedRead) {
     modules.push("M2:protected_file_access");
     pushDim(accum, "harm", 2);
     pushDim(accum, "rev", protectedAccess.operation === "write" ? 2 : 1);
@@ -1851,6 +1964,7 @@ export function guardToolCall(
   const trustedManagedLynxCheckToolCall = context?.trustedManagedLynxCheckToolCall === true;
   const trustedOfficialLynxGuardianUpdateToolCall = context?.trustedOfficialLynxGuardianUpdateToolCall === true
     || hasActiveOfficialLynxGuardianUpdateIntent(sessionKey);
+  const promptText = context?.promptText ?? "";
 
   const toolAction = (params?.action ?? "") as string;
   const note = (params?.note ?? "") as string;
@@ -1861,6 +1975,12 @@ export function guardToolCall(
   const normalizedToolName = toolName.trim().toLowerCase();
   const normalizedToolAction = toolAction.trim().toLowerCase();
   const combined = `${toolName} ${toolAction} ${note} ${command} ${filePath} ${cwd} ${raw}`;
+  const trustedOpenClawUpgradeMaintenanceToolCall = isTrustedOpenClawUpgradeMaintenanceToolCall({
+    toolName: normalizedToolName,
+    toolAction: normalizedToolAction,
+    combined,
+    promptText,
+  });
   const protectedAccess = detectProtectedFileAccess(combined, toolName);
   const memorySessionAccess = detectOpenClawMemorySessionArtifactAccess(combined, toolName);
   const credTheft = detectCredentialTheft(combined);
@@ -1881,7 +2001,11 @@ export function guardToolCall(
 
   const finalizeToolDecision = (decision: GuardDecision): GuardDecision => decision;
 
-  if (normalizedToolName === "gateway" && /^config\.(?:patch|set|replace|update)$/i.test(normalizedToolAction)) {
+  if (
+    normalizedToolName === "gateway"
+    && /^config\.(?:patch|set|replace|update)$/i.test(normalizedToolAction)
+    && !trustedOpenClawUpgradeMaintenanceToolCall
+  ) {
     return finalizeToolDecision(buildInstantDeny("M2:runtime_config_integrity", "attempt to modify immutable OpenClaw/Lynx config"));
   }
 
@@ -1893,6 +2017,7 @@ export function guardToolCall(
       toolName: normalizedToolName,
       combined,
     })
+    && !trustedOpenClawUpgradeMaintenanceToolCall
   ) {
     return finalizeToolDecision(buildInstantDeny("M3:system_availability", "attempt to restart or stop OpenClaw"));
   }
@@ -1900,6 +2025,10 @@ export function guardToolCall(
   // === 即时危险通道 ===
 
   // M5: 主要凭证 via tool
+  if (detectSystemStartupConfigMutation(combined, normalizedToolName)) {
+    return finalizeToolDecision(buildInstantDeny("M2:protected_file_access", "attempt to mutate shell startup or system config file"));
+  }
+
   if (detectImmutableRuntimeConfigWrite(protectedAccess)) {
     return finalizeToolDecision(buildInstantDeny("M2:runtime_config_integrity", "attempt to modify immutable OpenClaw/Lynx config"));
   }
@@ -1915,6 +2044,7 @@ export function guardToolCall(
       toolName: normalizedToolName,
       combined,
     })
+    && !trustedOpenClawUpgradeMaintenanceToolCall
   ) {
     return finalizeToolDecision(buildInstantDeny("M3:system_availability", "attempt to restart or stop OpenClaw"));
   }
@@ -1931,6 +2061,7 @@ export function guardToolCall(
       command,
       combined,
     })
+    && !trustedOpenClawUpgradeMaintenanceToolCall
   ) {
     return finalizeToolDecision(buildInstantDeny("M2:plugin_integrity", "attempt to modify Lynx plugin directory"));
   }

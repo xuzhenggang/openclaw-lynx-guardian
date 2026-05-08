@@ -206,6 +206,7 @@ export interface TokenUsageData {
   provider: string;
   model: string;
   sourceType?: "actual" | "estimated" | "unavailable";
+  sourceOrigin?: "hook" | "transcript";
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;

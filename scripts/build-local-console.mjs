@@ -63,15 +63,21 @@ function resolveGoCommand() {
   return "go";
 }
 
+function resolveGoModModeArg(backendGoDir) {
+  const vendorModulesPath = path.join(backendGoDir, "vendor", "modules.txt");
+  return existsSync(vendorModulesPath) ? "-mod=vendor" : "-mod=readonly";
+}
+
 function buildGoTarget(platform, arch) {
   const backendGoDir = path.join(rootDir, "backend");
   const outputDir = path.join(backendGoDir, "dist");
   mkdirSync(outputDir, { recursive: true });
+  const modModeArg = resolveGoModModeArg(backendGoDir);
 
-  console.log(`[build-local-console] build backend ${platform}/${arch}`);
+  console.log(`[build-local-console] build backend ${platform}/${arch} (${modModeArg})`);
   const result = spawnSync(resolveGoCommand(), [
     "build",
-    "-mod=vendor",
+    modModeArg,
     "-trimpath",
     "-ldflags",
     "-s -w",
