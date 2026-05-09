@@ -1,0 +1,238 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+放行记录
+|
+APPROVAL GRANTS
+混合
+放行记录
+
+审批后的工具放行流水
+
+已放行调用
+
+7
+
+命中授权范围
+
+已撤销/失效
+
+0
+
+过期、升级或上下文变化
+
+关键词
+申请人
+应用筛选
+重置条件
+放行记录说明
+审批通过后，后续同一链路里的 tool 调用如果命中已授权范围，会作为放行记录出现在这里；换成 exec、换路径或链路结束就不会复用。
+放行记录列表
+放行	申请人	审批人	工具	状态	过期时间	操作
+
+grant-lyn...text
+lynx:brok...text
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+exec
+	有效
+2026/5/8 14:51:27
+	详情
+
+grant-lyn...text
+lynx:brok...text
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+exec
+	有效
+2026/5/8 14:46:52
+	详情
+
+grant-lyn...text
+lynx:brok...text
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+exec
+	有效
+2026/5/8 14:43:44
+	详情
+
+grant-lyn...text
+lynx:brok...text
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+exec
+	有效
+2026/5/8 14:40:34
+	详情
+
+grant-lyn...text
+lynx:brok...text
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+exec
+	有效
+2026/5/8 14:37:28
+	详情
+
+grant-lyn...text
+lynx:brok...text
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+exec
+	有效
+2026/5/8 12:12:30
+	详情
+
+grant-lyn...cess
+lynx:ssg:...cess
+
+未知
+
+ou_f3d86d9e96e13864d7f572aa281a2dff
+
+read
+	有效
+2026/5/8 10:34:44
+	详情
+
+第 1 页 / 共 1 页，显示 7 条结果，共 7 条
+
+1
+20 条/页
+放行详情
+
+grant-lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context
+
+×
+
+放行概览
+
+grant-lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context 覆盖 exec 的后续授权命中。
+
+状态
+有效
+申请人
+暂无
+审批人
+ou_f3d86d9e96e13864d7f572aa281a2dff
+工具
+exec
+过期时间
+2026/5/8 14:51:27
+授权上下文
+
+放行记录与审批、链路、请求人和目标之间的绑定关系。
+
+放行 ID
+grant-lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context
+审批 ID
+lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context
+链路
+da946e18-6841-45f1-b936-b24e219e7745
+会话
+agent:main:main
+渠道
+webchat
+会话 ID
+暂无
+风险族
+chain_context
+目标类型
+tool
+目标哈希
+507ff305b5af633308938fcba1431bb3f3dac2fa4480120321470cf3f79acba9
+创建时间
+2026/5/8 14:21:27
+过期时间
+2026/5/8 14:51:27
+撤销时间
+暂无
+关联执行链路
+
+这条放行记录绑定的链路、审批、工具和目标。
+
+关系说明：Grant grant-lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context belongs to chain da946e18-6841-45f1-b936-b24e219e7745 and approval lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context for session agent:main:main.
+
+链路：da946e18-6841-45f1-b936-b24e219e7745
+
+会话：agent:main:main
+
+审批：lynx:broker:da946e18-6841-45f1-b936-b24e219e7745:call_ffdcdecde06447bf8e19befc:chain_context
+
+工具：exec
+
+目标：tool / 507ff305b5af633308938fcba1431bb3f3dac2fa4480120321470cf3f79acba9
+
+放行范围
+
+后续调用命中这些条件时才会复用这条授权。
+
+授权风险等级
+L3
+决策结果
+allow-once
+授权范围
+allow-current-chain
+有效窗口
+3 分钟
+授权范围
+execWorkflow
+目标哈希
+507ff305b5af633308938fcba1431bb3f3dac2fa4480120321470cf3f79acba9
+目标类型
+tool
+工具
+exec
+撤销原因
+暂无
+关联工具调用
+
+每张卡片对应一次与该放行记录相关的工具执行。
+
+exec
+completed
+
+printf repeat-loop-test
+
+completed
+
+call_ffdc...befc

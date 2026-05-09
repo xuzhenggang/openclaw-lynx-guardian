@@ -1,0 +1,183 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+多轮链路
+|
+AUDIT CHAIN
+混合
+多轮链路
+
+链路诊断
+
+链路数量
+
+5
+
+匹配当前筛选条件
+
+关键词
+渠道
+全部渠道
+应用筛选
+重置条件
+多轮链路说明
+多轮链路统计一段任务区间里多次有关联的输入、判断、工具调用、审批和放行，用来回答哪些对话被当成同一条风险上下文一起看。
+示例：用户先要求读取配置，随后改成读取同一路径，再触发审批或放行；这些有关联判断会进入同一条多轮链路。
+链路列表
+链路 ID	会话 / 对话	覆盖输入词	风险线索	人工动作	详情
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+未知对话
+
+覆盖输入词：[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Friday, May 1st, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-01 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.；[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Saturday, May 2nd, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-02 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically. 等 7 条
+
+evasive_intent_cn
+
+暂无
+	详情
+agent:main:main
+agent:main:main
+未知对话
+
+覆盖输入词：[Lynx Guardian] Inbound message blocked before transcript persistence. Risk: L4, score=10. Reason: [Lynx Guardian] 🛡️ 安全防护拦截 (L4, score=10): attempt to disable Lynx Guardian The original protected request has been removed. Reply with a brief refusal only.；[Lynx Guardian] Inbound message blocked before transcript persistence. Risk: L4, score=10. Reason: [Lynx Guardian] 🛡️ 安全防护拦截 (L4, score=10): attempt to disable Lynx Guardian The original protected request has been removed. Reply with a brief refusal only. 等 50 条
+
+evasive_intent_cn
+
+暂无
+	详情
+temp:slug-generator
+temp:slug-generator
+未知对话
+
+覆盖输入词：[Bootstrap pending]；[Lynx Guardian] Input risk is L3. The model may reason about the current request with strict safety context. 等 3 条
+
+evasive_intent_cn
+
+暂无
+	详情
+agent:main:openai:3fd5bd24-15d0-4c9a-a3ca-7f3744eef21b
+agent:main:openai:3fd5bd24-15d0-4c9a-a3ca-7f3744eef21b
+未知对话
+
+覆盖输入词：历史记录未保存用户原始输入
+
+evasive_intent_cn
+
+暂无
+	详情
+agent:main:openai:8dbeb4d4-8b2f-4fac-b124-d5737a3ad005
+agent:main:openai:8dbeb4d4-8b2f-4fac-b124-d5737a3ad005
+未知对话
+
+覆盖输入词：历史记录未保存用户原始输入
+
+evasive_intent_cn
+
+暂无
+	详情
+
+第 1 页 / 共 1 页，显示 5 条结果，共 5 条
+
+1
+20 条/页
+链路详情
+
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+
+×
+
+链路概览
+
+覆盖输入词：[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Friday, May 1st, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-01 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.；[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Saturday, May 2nd, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-02 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically. 等 7 条
+
+链路
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+会话
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+覆盖输入
+7
+当前放行
+暂无
+待审批
+暂无
+关联关系
+
+说明这些问答、审批、工具和放行为何被归到同一条链路。
+
+同一会话：agent:main:cron:lynx-guardian-scheduled-lynx-check
+
+覆盖问答：7 条
+
+风险连续性：evasive_intent_cn
+
+链路信号
+
+同一上下文内累计的身份、敏感目标、审批和工具调用信号。
+
+身份信号
+暂无
+敏感请求
+暂无
+近期拒绝
+暂无
+近期审批
+暂无
+工具
+暂无
+Taint 读取
+暂无
+规避信号
+evasive_intent_cn
+会话键
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+覆盖输入词
+
+这条链路实际覆盖到的问答输入片段。
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Friday, May 1st, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-01 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / 77178975-855d-42e4-999e-03f490af4a5b
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Saturday, May 2nd, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-02 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / 62d13211-8a6c-4e39-8602-de41229ad6ef
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Tuesday, May 5th, 2026 - 2:35 PM (Asia/Shanghai) / 2026-05-05 06:35 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / 0755d1fe-4564-462c-be0f-89014415a9f7
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Wednesday, May 6th, 2026 - 9:45 AM (Asia/Shanghai) / 2026-05-06 01:45 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / d6df1edf-4f1c-4f8f-99f6-16e852280916
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Thursday, May 7th, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-07 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / e059b303-d206-473a-a92f-76a1ac1255b7
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Friday, May 8th, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-08 00:37 UTC Use the message tool if you need to notify the user directly for the current chat. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / 8149a616-df14-44d1-802d-e463901740cb
+
+[cron:lynx-guardian-scheduled-lynx-check Lynx Guardian Daily Check] /lynx-check Current time: Saturday, May 9th, 2026 - 8:37 AM (Asia/Shanghai) / 2026-05-09 00:37 UTC Use the message tool if you need to notify the user directly with an explicit target. If you do not send directly, your final plain-text reply will be delivered automatically.
+
+completed / 999a5986-e05d-44b3-beb0-ad514eb9f55f

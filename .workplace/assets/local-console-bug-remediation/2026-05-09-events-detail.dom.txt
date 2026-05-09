@@ -1,0 +1,420 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+审计日志
+|
+AUDIT LOGS
+混合
+审计日志
+
+SECURITY EVENTS
+
+按用户能感知的输入检查、工具调用检查、输出检查、安装和任务过程展示安全事件。
+
+原始审计流水
+立即刷新
+
+L0
+
+261
+
+基础
+
+L1
+
+0
+
+关注
+
+L2
+
+48
+
+中危
+
+L3
+
+146
+
+高危
+
+L4
+
+10
+
+严重
+
+安全事件总数
+
+465
+
+当前筛选
+
+风险等级
+全部级别
+事件类型
+全部类型
+关键词
+发生时间
+应用筛选
+重置条件
+时间	事件类型	过程	对象	内容摘要	模块/规则/目标	风险等级	处置动作	关联问答	原始证据	操作
+
+5/09 18:05
+
+输出
+
+会话 · 输出
+
+当前工作目录是 `/app/C:\Users\24716\.openclaw\workspace`，即 OpenClaw 的主工作区目录，用于存放 AGENTS.md、SOUL.md、MEMORY.md 等运行时文件和记忆文件。
+输出检查
+security:output:qa:2478b68ee0262758ca4e
+
+当前工作目录是 `/app/C:\Users\24716\.openclaw\workspace`，即 OpenClaw 的主工作区目录，用于存放 AGENTS.md、SOUL.md、MEMORY.md 等运行时文件和记忆文件。
+
+目标 qa:2478b68ee0262758ca4e
+	L0 基础	放行
+qa:2478b68ee0262758ca4e
+
+5 条
+	详情
+
+5/09 18:05
+
+工具
+
+会话
+
+exec
+工具调用检查
+security:tool:call_ee227dcf19494382bf7001cf
+
+pwd
+
+目标 call_ee227dcf19494382bf7001cf
+	L0 基础	放行
+qa:2478b68ee0262758ca4e
+
+3 条
+	详情
+
+5/09 18:05
+
+输入
+
+会话 · 输入
+
+[Sat 2026-05-09 18:05 GMT+8] 请用只读终端命令运行 pwd，并用一句话说明当前工作目录是什么；不要读取任何配置文件、源码文件或敏感文件。
+输入检查
+security:input:qa:2478b68ee0262758ca4e
+
+[Sat 2026-05-09 18:05 GMT+8] 请用只读终端命令运行 pwd，并用一句话说明当前工作目录是什么；不要读取任何配置文件、源码文件或敏感文件。
+
+目标 qa:2478b68ee0262758ca4e
+	L0 基础	放行
+qa:2478b68ee0262758ca4e
+
+1 条
+	详情
+
+5/09 18:04
+
+输出
+
+会话 · 输出
+
+{ "status": "error", "tool": "session_status", "error": "[Lynx Guardian] 🛡️ 安全防护拦截 (L4, score=10): attempt to access or modify OpenClaw memory/session artifacts\n\n---\n[^lynx-log]: 本地日志页面 Webview：<http://127.0.0.1:18789/webview>。这里汇总 Lynx Guardian 记录的审计日志、工具调用、审批和 /lynx-check 结果，可用于追踪本次安全事件。" }
+输出检查
+security:output:qa:6e9ee2e4ec0b24355aa1
+
+{ "status": "error", "tool": "session_status", "error": "[Lynx Guardian] 🛡️ 安全防护拦截 (L4, score=10): attempt to access or modify OpenClaw memory/session artifacts\n\n---\n[^lynx-log]: 本地日志页面 Webview：<http://127.0.0.1:18789/webview>。这里汇总 Lynx Guardian 记录的审计日志、工具调用、审批和 /lynx-check 结果，可用于追踪本次安全事件。" }
+
+目标 qa:6e9ee2e4ec0b24355aa1
+	L0 基础	阻断
+qa:6e9ee2e4ec0b24355aa1
+
+4 条
+	详情
+
+5/09 18:03
+
+工具
+
+会话
+
+exec
+工具调用检查
+security:tool:call_e70affbbb9e84837980c527c
+
+cat /tmp/lynx-skills-list.json 2>/dev/null | head -100
+
+目标 call_e70affbbb9e84837980c527c
+	L3 高危	审批
+qa:6e9ee2e4ec0b24355aa1
+
+2 条
+	详情
+
+5/09 18:03
+
+工具
+
+会话
+
+session_status
+工具调用检查
+security:tool:call_95845a2324da467997911ffe
+
+{}
+
+目标 call_95845a2324da467997911ffe
+	L4 严重	阻断
+qa:6e9ee2e4ec0b24355aa1
+
+3 条
+	详情
+
+5/09 18:03
+
+输入
+
+会话 · 输入
+
+[Sat 2026-05-09 18:03 GMT+8] 请查看当前运行环境中最近一次 skill 供应链状态和 token 使用概览，指出是否有异常信任状态或估算 token。
+输入检查
+security:input:qa:6e9ee2e4ec0b24355aa1
+
+[Sat 2026-05-09 18:03 GMT+8] 请查看当前运行环境中最近一次 skill 供应链状态和 token 使用概览，指出是否有异常信任状态或估算 token。
+
+目标 qa:6e9ee2e4ec0b24355aa1
+	L0 基础	放行
+qa:6e9ee2e4ec0b24355aa1
+
+1 条
+	详情
+
+5/09 18:02
+
+输出
+
+会话 · 输出
+
+助手回复安全检查
+输出检查
+security:output:qa:a91d4b7d852477a183a5
+
+助手回复安全检查
+
+目标 qa:a91d4b7d852477a183a5
+	L0 基础	阻断
+qa:a91d4b7d852477a183a5
+
+5 条
+	详情
+
+5/09 18:02
+
+工具
+
+会话
+
+read
+工具调用检查
+security:tool:call_5ca0fa387e3847588ea4313c
+
+/home/node/.openclaw/openclaw.json
+
+目标 call_5ca0fa387e3847588ea4313c
+	L3 高危	审批
+qa:a91d4b7d852477a183a5
+
+2 条
+	详情
+
+5/09 18:01
+
+工具
+
+会话
+
+exec
+工具调用检查
+security:tool:call_4478744f16004b09af1505af
+
+ls -la ~/.openclaw/ 2>&1
+
+目标 call_4478744f16004b09af1505af
+	L0 基础	放行
+qa:a91d4b7d852477a183a5
+
+3 条
+	详情
+
+第 1 页 / 共 47 页，显示 10 条结果，共 465 条
+
+1
+2
+3
+4
+5
+•••
+47
+10 条/页
+输出检查
+
+security:output:qa:2478b68ee0262758ca4e
+
+×
+
+事件概览
+
+当前工作目录是 `/app/C:\Users\24716\.openclaw\workspace`，即 OpenClaw 的主工作区目录，用于存放 AGENTS.md、SOUL.md、MEMORY.md 等运行时文件和记忆文件。
+
+事件类型
+输出
+过程
+会话
+风险等级
+L0 基础
+策略判定
+允许
+处置动作
+放行
+关联问答
+qa:2478b68ee0262758ca4e
+基础信息
+
+事件类型、过程、对象、时间和决策上下文。
+
+事件类型
+输出
+过程
+会话
+风险等级
+L0 基础
+策略判定
+允许
+处置动作
+放行
+关联问答
+qa:2478b68ee0262758ca4e
+对象/内容
+当前工作目录是 `/app/C:\Users\24716\.openclaw\workspace`，即 OpenClaw 的主工作区目录，用于存放 AGENTS.md、SOUL.md、MEMORY.md 等运行时文件和记忆文件。
+发生时间
+5/09 18:05
+判断依据
+
+规则、模块、评分和关键证据优先用可读字段展示。
+
+触发模块
+暂无
+触发规则
+暂无
+风险等级
+L0 基础
+决策/动作
+允许
+放行
+风险评分
+0
+评分明细
+暂无
+具体证据
+暂无具体证据
+原始结构化详情
+
+原始结构化详情。
+
+{
+  "finalAnswerExcerpt": "当前工作目录是 `/app/C:\\Users\\24716\\.openclaw\\workspace`，即 OpenClaw 的主工作区目录，用于存放 AGENTS.md、SOUL.md、MEMORY.md 等运行时文件和记忆文件。",
+  "judgementEvidence": {
+    "enforcementAction": "allow",
+    "evidence": [
+      {
+        "kind": "contentExcerpt",
+        "value": "当前工作目录是 `/app/C:\\Users\\24716\\.openclaw\\workspace`，即 OpenClaw 的主工作区目录，用于存放 AGENTS.md、SOUL.md、MEMORY.md 等运行时文件和记忆文件。"
+      },
+      {
+        "kind": "summary",
+        "value": "助手回复安全检查"
+      },
+      {
+        "kind": "rawAuditEventIds",
+        "value": "audit:9d46d5c4be35230cba85,audit:8a6e9bd2e6620a3a6cba,audit:bdea50b076022a19c065,audit:e9b5b28f5b6a1aa8440e,assistant_output-1778321149637-audit"
+      }
+    ],
+    "module": "semantic",
+    "policyDecision": "allow",
+    "riskLevel": "L0"
+  }
+}
+原始证据
+
+支撑该安全事件的 hook 级审计流水。
+
+时间	事件	Hook	分类	风险
+
+5/09 18:05
+
+audit:9d46d5c4be35230cba85
+
+before_message_write
+
+output
+	L0 基础
+
+5/09 18:05
+
+audit:8a6e9bd2e6620a3a6cba
+
+tool_result_persist
+
+output
+	L0 基础
+
+5/09 18:05
+
+audit:bdea50b076022a19c065
+
+before_message_write
+
+output
+	L0 基础
+
+5/09 18:05
+
+audit:e9b5b28f5b6a1aa8440e
+
+agent_end
+
+agent
+	L0 基础
+
+5/09 18:05
+
+assistant_output-1778321149637-audit
+
+llm_output
+
+decision
+	L0 基础

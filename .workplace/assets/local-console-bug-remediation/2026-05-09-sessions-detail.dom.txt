@@ -1,0 +1,327 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+会话
+|
+SESSION INDEX
+混合
+会话
+
+会话索引
+
+展示真实会话列表与默认详情快照。
+
+实时数据
+
+总会话
+
+20
+
+默认展示最近 20 条
+
+活跃会话
+
+19
+
+尚未结束的会话
+
+群聊会话
+
+0
+
+按 isGroup 聚合
+
+高风险会话
+
+3
+
+包含高风险事件的会话
+
+会话类型
+全部类型
+关键词
+请求人
+渠道
+应用筛选
+重置条件
+会话台账
+
+列表与详情都来自真实会话查询接口。
+
+会话	渠道	事件数	风险	最近活动
+
+agent:main:main
+
+other
+
+1,392
+	L3 高危
+5/09 18:05
+
+
+agent:main:cron:lynx-guardian-scheduled-lynx-check
+
+暂无
+
+42
+	L3 高危
+5/09 08:37
+
+
+temp:slug-generator
+
+暂无
+
+20
+	L3 高危
+5/08 10:10
+
+
+agent:main:openai:78f5c96b-aa27-4c64-be42-3a25d9c8ad1d
+
+暂无
+
+11
+	L1 关注
+5/08 10:01
+
+
+agent:main:openai:7ff2340e-3fe3-4893-9719-d8944af286bc
+
+暂无
+
+12
+	L1 关注
+5/08 09:56
+
+
+agent:main:openai:de3fb9ad-2d96-4698-84c5-97c9cf5ed473
+
+暂无
+
+12
+	L1 关注
+5/07 21:42
+
+
+agent:main:openai:742b475c-0c49-46b6-825f-26381972af70
+
+暂无
+
+12
+	L1 关注
+5/07 21:22
+
+
+agent:main:openai:b96bb81c-9ff1-466d-bcde-edd709379b13
+
+暂无
+
+12
+	L1 关注
+5/07 17:22
+
+
+agent:main:openai:c75bdd94-af9d-48a2-aa6b-53c09a94ad44
+
+暂无
+
+12
+	L1 关注
+5/07 16:40
+
+
+agent:main:openai:eb8ed49c-e31e-4c8a-b395-a9f36c0f09f2
+
+暂无
+
+12
+	L1 关注
+5/07 16:20
+
+
+agent:main:openai:9767df9a-b67f-42c2-9368-a31d898d131a
+
+暂无
+
+12
+	L1 关注
+5/07 16:08
+
+
+agent:main:openai:d8a3ba68-66df-468d-943f-de546aa05bdc
+
+暂无
+
+12
+	L1 关注
+5/07 15:51
+
+
+agent:main:openai:f0671077-4bb5-483f-bb24-022bd2d97948
+
+暂无
+
+6
+	L1 关注
+5/07 15:38
+
+
+agent:main:openai:f986ccd8-4076-48de-be83-dc6c09168a7f
+
+暂无
+
+12
+	L1 关注
+5/07 15:26
+
+
+agent:main:openai:3e01a697-0074-4c71-8df6-28d29b8f071e
+
+暂无
+
+12
+	L1 关注
+5/07 15:20
+
+
+agent:main:openai:1a32f27c-a1a5-4e1d-b3b6-45114f857261
+
+暂无
+
+11
+	L1 关注
+5/07 15:09
+
+
+agent:main:openai:46e90090-035b-430b-b0c6-bd09c37ee391
+
+暂无
+
+12
+	L1 关注
+5/07 14:48
+
+
+agent:main:openai:75c22ef9-da76-4af2-956c-d8261f182c86
+
+暂无
+
+12
+	L1 关注
+5/07 14:39
+
+
+agent:main:openai:06583b77-f71a-4d94-8c02-58aa4ebf24f0
+
+暂无
+
+12
+	L1 关注
+5/07 14:27
+
+
+agent:main:openai:b4a42309-bf5b-40d6-ba34-c0b05daf9bfc
+
+暂无
+
+6
+	L1 关注
+5/06 16:38
+
+第 1 页 / 共 2 页，显示 20 条结果，共 31 条
+
+1
+2
+20 条/页
+会话详情
+
+按活动、工具、审批和 Token 汇总当前会话。
+
+会话摘要
+
+5 次工具调用 · 5 条安全事件 · 5 次审批
+
+会话元信息
+会话标识
+会话：agent:main:main
+渠道
+other
+群聊状态
+单聊
+首次出现
+4/30 18:32
+最近活动
+5/09 18:05
+会话活动摘要
+会话事件数
+1,392
+高风险事件
+242
+工具调用数
+205
+最近工具
+exec：历史记录未保存具体命令
+allow · 5/09 18:05
+完整工具详情
+exec：历史记录未保存具体命令
+requireApproval · 5/09 18:03
+完整工具详情
+session_status：历史记录未保存具体命令
+block · 5/09 18:03
+完整工具详情
+read：历史记录未保存具体命令
+requireApproval · 5/09 18:02
+完整工具详情
+exec：历史记录未保存具体命令
+allow · 5/09 18:01
+完整工具详情
+最近审批
+M2:protected_file_access / L3
+workflow · 5/09 18:02
+M2:protected_file_access / L3
+workflow · 5/08 10:07
+M2:protected_file_access / L3
+workflow · 5/08 10:04
+M2:protected_file_access / L3
+singleTool · 5/01 02:34
+M2:protected_file_access / L3
+singleTool · 5/01 02:16
+最近安全事件
+Lynx Guardian decision
+allow · 5/09 18:05
+Agent finished
+allow · 5/09 18:05
+Assistant message prepared
+allow · 5/09 18:05
+Tool result prepared for persistence
+allow · 5/09 18:05
+Tool call completed
+allow · 5/09 18:05
+Token 摘要
+总量：5,111,102
+输入：5,085,858
+输出：25,244
+未采集
+
+渠道 ID、会话 ID、请求人、账号 尚未由当前历史记录提供。

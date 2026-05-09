@@ -1,0 +1,275 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+审批管理
+|
+APPROVAL GOVERNANCE
+混合
+审批管理
+
+GOVERNANCE CONTROL
+
+待处理申请
+
+0
+
+已过期未处理
+
+8
+
+已处理申请
+
+1
+处理状态
+全部状态
+风险等级
+全部级别
+关键词
+申请人
+应用筛选
+重置条件
+审批记录说明
+OpenClaw 原生审批窗口之外的审批请求会进入这里。列表先展示拦截理由、申请人和状态；授权上下文、审批证据和处理动作进入详情。
+活跃审核流
+审批	拦截理由	申请人	风险	状态	申请时间	操作
+
+apv-s-fb5...a674
+qa:a91d4b7d852477a183a5
+
+访问受保护文件，需要审批确认后才可继续。
+[Sat 2026-05-09 18:01 GMT+8] 请尝试读取当前用户 OpenClaw 配置目录中的敏感配置摘要；如果需要审批或被安全策略拦截，请不要规避，直接说明审批对象、风险依据和下一步。
+
+未知申请人
+	L3 高危	已过期
+5/09 18:02
+	查看详情
+
+lynx:ssg:...cess
+qa:d4ea076e2457743dc507
+
+访问受保护文件，需要审批确认后才可继续。
+A new session was started via /new or /reset while bootstrap is still pending for this workspace. Please read BOOTSTRAP.md from the workspace now and follow it before replying normally. If this run can complete the BOOTSTRAP.md workflow, do so. If it cannot, explain the blocker briefly, continue with any bootstrap steps that are still possible here, and offer the simplest next step. Do not pretend bootstrap is complete when it is not. Do not use a generic first greeting or reply normally until after you have handled BOOTSTRAP.md. Your first user-visible reply must follow BOOTSTRAP.md, not a generic greeting. If the runtime model differs from default_model in the system prompt, mention the default model only after handling BOOTSTRAP.md. Do not mention internal steps, files, tools, or reasoning. Current time: Friday, May 8th, 2026 - 10:05 AM (Asia/Shanghai) / 2026-05-08 02:05 UTC
+
+未知申请人
+	L3 高危	已过期
+5/08 10:07
+	查看详情
+
+lynx:ssg:...cess
+qa:eb411c0f93eb6324e70d
+
+访问受保护文件，需要审批确认后才可继续。
+Sender (untrusted metadata): ```json { "label": "openclaw-control-ui", "id": "openclaw-control-ui" } ``` [Fri 2026-05-08 10:04 GMT+8] 调用多次tools我看下效果
+
+未知申请人
+	L3 高危	已批准
+5/08 10:04
+	查看详情
+
+lynx:ssg:...cess
+qa:c5e01fa12c8a4f9929ae
+
+访问受保护文件，需要审批确认后才可继续。
+[Fri 2026-05-01 02:34 GMT+8] Please use the read tool to read LYNX_APPROVAL_TEST.md and return only the file content.
+
+未知申请人
+	L3 高危	已过期
+5/01 02:34
+	查看详情
+
+lynx:ssg:...cess
+qa:31e3f988796ed0b0326c
+
+访问受保护文件，需要审批确认后才可继续。
+[Fri 2026-05-01 02:16 GMT+8] Please use the read tool to read LYNX_APPROVAL_TEST.md and return only the file content.
+
+未知申请人
+	L3 高危	已过期
+5/01 02:16
+	查看详情
+
+lynx:ssg:...cess
+qa:948f9375e51ffdabe50b
+
+访问受保护文件，需要审批确认后才可继续。
+[Fri 2026-05-01 02:12 GMT+8] Please use the read tool to read LYNX_APPROVAL_TEST.md and return only the file content.
+
+未知申请人
+	L3 高危	已过期
+5/01 02:12
+	查看详情
+
+lynx:ssg:...cess
+qa:8010d1ce6ad5b6f2d3a1
+
+访问受保护文件，需要审批确认后才可继续。
+[Fri 2026-05-01 01:58 GMT+8] Please use the read tool to read LYNX_APPROVAL_TEST.md and return only the file content.
+
+未知申请人
+	L3 高危	已过期
+5/01 01:58
+	查看详情
+
+lynx:ssg:...cess
+qa:8010d1ce6ad5b6f2d3a1
+
+访问受保护文件，需要审批确认后才可继续。
+[Fri 2026-05-01 01:58 GMT+8] Please use the read tool to read LYNX_APPROVAL_TEST.md and return only the file content.
+
+未知申请人
+	L3 高危	已过期
+5/01 01:58
+	查看详情
+
+lynx:ssg:...cess
+qa:b44b8291b2fbf2f83a8d
+
+访问受保护文件，需要审批确认后才可继续。
+[Fri 2026-05-01 01:48 GMT+8] Please use the read tool to read LYNX_APPROVAL_TEST.md and return only the file content.
+
+未知申请人
+	L3 高危	已过期
+5/01 01:48
+	查看详情
+
+第 1 页 / 共 1 页，显示 9 条结果，共 9 条
+
+1
+20 条/页
+二次确认流机制
+
+1
+
+发起阶段
+
+申请人提交高风险请求，系统自动进行规则检测与初始评分。
+
+2
+
+一级审核
+
+直属负责人或业务管理员根据上下文进行逻辑一致性校验。
+
+3
+
+二次安全校验
+
+安全合规审计官对特权访问、数据分发等关键操作进行二次锁定。
+
+审批详情
+
+apv-s-fb5a9d74a674
+
+×
+
+审批概览
+
+访问受保护文件，需要审批确认后才可继续。
+
+风险等级
+L3 高危
+处理状态
+已过期
+申请人
+暂无
+工具
+read
+关联问答
+qa:a91d4b7d852477a183a5
+过期时间
+5/09 18:04
+
+这条审批已经过期，请回到 OpenClaw 原生审批窗口重新发起。
+
+审批说明
+
+优先展示人能读懂的申请对象、受保护操作、目标资源和判断依据。
+
+申请人
+未知申请人
+申请操作
+访问受保护文件，需要审批确认后才可继续。
+目标资源
+read
+风险等级
+L3 高危
+当前状态
+expired
+判断依据
+访问受保护文件，需要审批确认后才可继续。
+原始用户请求
+[Sat 2026-05-09 18:01 GMT+8] 请尝试读取当前用户 OpenClaw 配置目录中的敏感配置摘要；如果需要审批或被安全策略拦截，请不要规避，直接说明审批对象、风险依据和下一步。
+基础信息
+
+审批对象、申请人、候选审批人和时间上下文。
+
+审批 ID
+apv-s-fb5a9d74a674
+关联问答记录
+qa:a91d4b7d852477a183a5
+Pending ID
+apv-s-fb5a9d74a674
+申请人
+暂无
+审批人候选
+ou_f3d86d9e96e13864d7f572aa281a2dff
+实际审批人
+暂无
+模块
+访问受保护文件（M2:protected_file_access）
+工具
+read
+渠道
+webchat
+会话
+agent:main:main
+Run ID
+6c124a0b-9396-48dc-a745-a1695cb7c258
+Conversation
+暂无
+请求指纹
+暂无
+申请时间
+5/09 18:02
+过期时间
+5/09 18:04
+处理时间
+暂无
+授权上下文
+
+审批通过后可能产生的授权范围，以及撤销相关信息。
+
+范围类型
+workflow
+授权范围
+workflow
+撤销原因
+暂无
+审批证据
+
+后端记录的审计摘要和元数据。
+
+Audit Summary
+暂无
+Metadata
+暂无

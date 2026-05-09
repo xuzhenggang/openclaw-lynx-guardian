@@ -1,0 +1,329 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+工具调用审计
+|
+TOOL CALLS MONITOR
+混合
+工具调用
+
+TOOL CALLS MONITOR
+
+详细审计记录基于 tool_calls 协议层追踪
+
+总调用次数
+
+20
+
+当前筛选窗口
+
+平均成功率
+
+45.0%
+
+SUCCESS / COMPLETED
+
+平均耗时 (P50)
+
+11.8s
+
+当前列表最大耗时
+
+异常调用数
+
+0
+
+ERROR / DENY
+
+状态
+全部状态
+关键词
+工具名称
+应用筛选
+重置条件
+实时调用流水
+
+表格保留定位和结果判断字段，决策、授权和外传信号进入详情。
+
+调用	工具名称	命令 / 操作	状态	耗时	结果摘要	调用时间	详情
+
+call_ee227dcf19494382bf7001cf
+qa:2478b68ee0262758ca4e
+	exec	pwd	已完成
+1.6s
+	历史记录未保存结果摘要
+5/09 18:05
+	查看详情
+
+call_e70affbbb9e84837980c527c
+qa:6e9ee2e4ec0b24355aa1
+	exec	cat /tmp/lynx-skills-list.json 2>/dev/null | head -100	未知
+待处理
+	历史记录未保存结果摘要
+5/09 18:03
+	查看详情
+
+call_95845a2324da467997911ffe
+qa:6e9ee2e4ec0b24355aa1
+	session_status	{}	已完成
+2.0s
+	历史记录未保存结果摘要
+5/09 18:03
+	查看详情
+
+call_5ca0fa387e3847588ea4313c
+qa:a91d4b7d852477a183a5
+	read	/home/node/.openclaw/openclaw.json	未知
+待处理
+	历史记录未保存结果摘要
+5/09 18:02
+	查看详情
+
+call_4478744f16004b09af1505af
+qa:a91d4b7d852477a183a5
+	exec	ls -la ~/.openclaw/ 2>&1	已完成
+3.6s
+	历史记录未保存结果摘要
+5/09 18:01
+	查看详情
+
+call_316f6e80d7ac47ddb0044d7f
+qa:73888b3745225b1caadb
+	exec	node -e "console.log(require('/app/C:\\Users\\24716\\.openclaw\\workspace/package.json').name)"	未知
+待处理
+	历史记录未保存结果摘要
+5/09 17:58
+	查看详情
+
+call_cd5c1220e08c4d9dae216e46
+qa:73888b3745225b1caadb
+	exec	ls -la /app/C:\Users\24716\.openclaw\workspace/package.json /app/C:\Users\24716\.openclaw\workspace/AGENTS.md 2>&1	未知
+待处理
+	历史记录未保存结果摘要
+5/09 17:58
+	查看详情
+
+call_342ef5b9b4f849e9ac7bcda1
+qa:518029a078b9b16d34c5
+	exec	printf tooluse-preamble-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 15:02
+	查看详情
+
+call_3eae56231a724f2d8554477e
+qa:46ab50d232d014828550
+	exec	printf tooluse-preamble-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 14:44
+	查看详情
+
+call_11b5179e4fa54e36b3c9565e
+qa:9ccaa0600f92c30dfaec
+	exec	printf tooluse-preamble-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 14:41
+	查看详情
+
+call_e32544058af9455391465c40
+qa:9cb964748cee152f6da8
+	exec	printf repeat-loop-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 14:25
+	查看详情
+
+call_b86e5ec9f8a04c5b8cd768ea
+qa:9cb964748cee152f6da8
+	exec	printf repeat-loop-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 14:25
+	查看详情
+
+call_45ca591ecf5b4d6683e92296
+qa:9cb964748cee152f6da8
+	exec	printf repeat-loop-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 14:25
+	查看详情
+
+call_bed54764ce8a49afbb3c0d37
+qa:9cb964748cee152f6da8
+	exec	printf repeat-loop-test	未知
+待处理
+	历史记录未保存结果摘要
+5/08 14:25
+	查看详情
+
+call_f81d6574facd4cdd85208a4e
+qa:e347ecf9de41c9880207
+	exec	printf repeat-loop-test	已完成
+11.6s
+	历史记录未保存结果摘要
+5/08 14:21
+	查看详情
+
+call_6cf11bd02d3d45f385be1e4b
+qa:e347ecf9de41c9880207
+	exec	printf repeat-loop-test	已完成
+11.7s
+	历史记录未保存结果摘要
+5/08 14:21
+	查看详情
+
+call_9da17834612245de99620f20
+qa:e347ecf9de41c9880207
+	exec	printf repeat-loop-test	已完成
+11.8s
+	历史记录未保存结果摘要
+5/08 14:21
+	查看详情
+
+call_ffdcdecde06447bf8e19befc
+qa:e347ecf9de41c9880207
+	exec	printf repeat-loop-test	已完成
+11.8s
+	历史记录未保存结果摘要
+5/08 14:21
+	查看详情
+
+call_027d0631244f49dabe2ba57d
+qa:3cb40052c08d3970703f
+	exec	mkdir -p /app/C:\Users\24716\.openclaw\workspace\fastapi-orm-project/{app/{api,models,schemas,core},tests}	已完成
+835ms
+	历史记录未保存结果摘要
+5/08 14:19
+	查看详情
+
+call_39ae62e39e2349dcbc5ffe8d
+qa:3cb40052c08d3970703f
+	exec	mkdir -p /app/C:\Users\24716\.openclaw\workspace\fastapi-orm-project/{app/{api,models,schemas,core},tests}	已完成
+1.6s
+	历史记录未保存结果摘要
+5/08 14:19
+	查看详情
+
+第 1 页 / 共 12 页，显示 20 条结果，共 228 条
+
+1
+2
+3
+4
+5
+•••
+12
+20 条/页
+高频调用工具
+
+MOST USED CAPABILITIES
+
+exec
+18 calls
+session_status
+1 calls
+read
+1 calls
+当前筛选概览
+
+基于当前页工具调用结果计算。
+
+成功调用
+9
+异常调用
+0
+最大耗时
+11.8s
+工具调用详情
+
+call_ee227dcf19494382bf7001cf
+
+×
+
+工具调用概览
+
+exec: pwd
+
+工具
+exec
+状态
+已完成
+耗时
+1.6s
+风险
+L0
+关联问答
+qa:2478b68ee0262758ca4e
+调用上下文
+
+定位这次工具调用所在的会话、运行、问答记录和审批链路。
+
+工具调用 ID
+call_ee227dcf19494382bf7001cf
+关联问答记录
+qa:2478b68ee0262758ca4e
+会话
+agent:main:main
+Run ID
+5c171a31-f460-4d49-8dc6-da712b2ebbcc
+审批 ID
+暂无
+开始时间
+5/09 18:05
+结束时间
+5/09 18:05
+耗时
+1.6s
+参数与结果
+
+参数摘要、触发模块和执行结果保留在详情里，避免列表横向撑开。
+
+执行命令
+pwd
+工作目录
+暂无
+参数
+暂无
+参数摘要
+pwd
+参数哈希
+dda6597d6cd7e032dc6372bed52a627fdebbdda7
+触发模块
+暂无
+决策 / Grant
+暂无
+Taint / 外传
+暂无
+错误信息
+暂无
+结果摘要
+历史记录未保存结果摘要
+控制面证据
+
+决策、授权、taint 和脚本预检等元数据证据。
+
+Metadata
+暂无

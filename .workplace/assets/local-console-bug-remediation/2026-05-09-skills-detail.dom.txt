@@ -1,0 +1,324 @@
+OpenClaw
+
+GUARDIAN CONSOLE
+
+工作台
+概览
+问答记录
+审计链路
+审计日志
+工具调用
+多轮链路
+审批闭环
+审批管理
+决策观测
+放行记录
+治理
+策略配置
+运行资产
+检测报告
+会话
+Token 统计
+Skill 供应链
+收起侧边栏
+Skill 供应链
+|
+SKILL INVENTORY
+混合
+Skill 供应链
+
+SKILL INVENTORY
+
+展示已安装 Skill、哈希基线、当前哈希、信任状态和供应链风险提示。
+
+实时数据
+
+匹配 Skill
+
+77
+
+分页显示，每页 20 条
+
+OpenClaw 原生
+
+60
+
+内置 / 托管 / 原生扩展
+
+其他渠道
+
+17
+
+插件扩展 / 用户目录
+
+本页问题
+
+0 / 0
+
+哈希异常 / 风险提示
+
+来源分布
+
+按来源类型筛选；计数保留完整 inventory 分布，不受当前来源按钮收窄。
+
+全部来源
+77
+原生内置
+53
+插件扩展
+15
+原生扩展
+4
+原生托管
+3
+用户 .openclaw
+2
+信任状态
+全部状态
+关键词
+应用筛选
+重置条件
+Skill 列表
+
+列表只显示风险提示数量，哈希、安装路径和具体规则进入详情。
+
+Skill	来源	信任状态	风险摘要	最后发现	操作
+
+1password
+1password
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+apple-notes
+apple-notes
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+apple-reminders
+apple-reminders
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+bear-notes
+bear-notes
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+blogwatcher
+blogwatcher
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+blucli
+blucli
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+bluebubbles
+bluebubbles
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+camsnap
+camsnap
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+clawhub
+clawhub
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+coding-agent
+coding-agent
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+discord
+discord
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+eightctl
+eightctl
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+feishu-doc
+feishu-doc
+
+OpenClaw 原生
+原生扩展
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+feishu-drive
+feishu-drive
+
+OpenClaw 原生
+原生扩展
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+feishu-perm
+feishu-perm
+
+OpenClaw 原生
+原生扩展
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+feishu-wiki
+feishu-wiki
+
+OpenClaw 原生
+原生扩展
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+gemini
+gemini
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+gh-issues
+gh-issues
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+gifgrep
+gifgrep
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+github
+github
+
+OpenClaw 原生
+原生内置
+	首次发现	无
+2026-05-09T10:05:43.091Z
+	详情
+
+第 1 页 / 共 4 页，显示 20 条结果，共 77 条
+
+1
+2
+3
+4
+20 条/页
+Skill 详情
+
+1password
+
+×
+
+Skill 概览
+
+1password 的安装来源、哈希基线与供应链风险提示。
+
+信任状态
+首次发现
+渠道
+OpenClaw 原生
+来源
+原生内置
+提示数
+0
+供应链状态
+
+Skill 身份、来源与哈希基线状态。
+
+Skill ID
+1password
+名称
+1password
+原始来源
+openclaw-bundled
+来源类型
+原生内置
+算法
+sha256
+Baseline Hash
+暂无
+Current Hash
+871a2d2c2864883437f3a9e42c3abbd1db28333e37c0f6bfee83429bee202f0c
+最后发现
+2026-05-09T10:05:43.091Z
+安装位置
+
+本地 inventory 记录到的安装目录与清单文件。
+
+安装路径
+/app/skills/1password
+清单路径
+/app/skills/1password/SKILL.md
+风险提示
+
+具体规则保留在详情中，列表只展示压缩摘要。
+
+暂无风险提示
