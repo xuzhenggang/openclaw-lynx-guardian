@@ -884,8 +884,10 @@ export function TokensPage() {
             { key: "type", label: "类型" },
             { key: "time", label: "触发时间" },
           ]}
+          emptyDescription="暂无 Token 使用记录"
           error={usageError}
           loading={usageLoading}
+          loadingLabel="正在加载 Token 使用记录"
           onRetry={retryUsage}
           rows={usageItems.map((item) => {
             const sourceType = resolveSourceType(item);

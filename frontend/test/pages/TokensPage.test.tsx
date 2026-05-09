@@ -181,6 +181,53 @@ function getRangeCallUrls(calls: Array<[RequestInfo | URL, RequestInit | undefin
   return calls.map((call) => String(call[0]));
 }
 
+function mockElementOverflow(isOverflowing: boolean): () => void {
+  const scrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
+  const clientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
+  const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+
+  Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+    configurable: true,
+    get: () => isOverflowing ? 240 : 80,
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+    configurable: true,
+    get: () => 100,
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+    configurable: true,
+    get: () => isOverflowing ? 48 : 20,
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get: () => 24,
+  });
+
+  return () => {
+    for (const [key, descriptor] of [
+      ["scrollWidth", scrollWidthDescriptor],
+      ["clientWidth", clientWidthDescriptor],
+      ["scrollHeight", scrollHeightDescriptor],
+      ["clientHeight", clientHeightDescriptor],
+    ] as const) {
+      if (descriptor) {
+        Object.defineProperty(HTMLElement.prototype, key, descriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, key);
+      }
+    }
+  };
+}
+
+function expectTooltipContent(text: string): void {
+  const tooltipTexts = Array.from(document.querySelectorAll(".table-cell-tooltip")).map(
+    (tooltip) => tooltip.textContent,
+  );
+
+  expect(tooltipTexts).toContain(text);
+}
+
 describe("TokensPage", () => {
   const fetchMock = vi.fn<typeof fetch>();
 
@@ -417,5 +464,218 @@ describe("TokensPage", () => {
     expect((await screen.findAllByTitle("1,322 tokens")).length).toBeGreaterThan(0);
     expect(screen.getByText("Transcript 回填")).toBeInTheDocument();
     expect(screen.getByText("1.3K -> 22")).toBeInTheDocument();
+  });
+
+  it("audits loading, long session IDs, source wording, and token chart/table readability", async () => {
+    const restoreOverflow = mockElementOverflow(true);
+    const longSessionKey = "session-token-audit-" + "full-value-access-".repeat(8);
+
+    try {
+      fetchMock.mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.startsWith("/lynx/tokens/summary")) {
+          return createJsonResponse({
+            totalTokens: 5_103,
+            inputTokens: 4_900,
+            outputTokens: 203,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            actualTokens: 4_980,
+            estimatedTokens: 123,
+            measurableTokens: 5_103,
+            measurableInputTokens: 4_900,
+            measurableOutputTokens: 203,
+            measurableCacheReadTokens: 0,
+            measurableCacheWriteTokens: 0,
+            estimatedCount: 1,
+            unavailableCount: 0,
+            originTotals: [
+              { sourceOrigin: "hook", totalTokens: 4_980, count: 1 },
+              { sourceOrigin: "transcript", totalTokens: 123, count: 1 },
+            ],
+            topModels: [
+              { model: "openclaw/main", totalTokens: 4_980 },
+              { model: "glm-5", totalTokens: 123 },
+            ],
+          });
+        }
+        if (url.startsWith("/lynx/tokens/trend")) {
+          return createJsonResponse({
+            bucket: "hour",
+            points: [
+              {
+                bucketStartMs: 1_777_350_000_000,
+                inputTokens: 120,
+                outputTokens: 30,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 150,
+              },
+              {
+                bucketStartMs: 1_777_353_600_000,
+                inputTokens: 4_780,
+                outputTokens: 173,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 4_953,
+              },
+            ],
+          });
+        }
+        if (url.startsWith("/lynx/tokens/heatmap")) {
+          return createJsonResponse({
+            timeZone: "local",
+            totalTokens: 5_103,
+            hourTotals: Array.from({ length: 24 }, (_, hour) => ({
+              hour,
+              totalTokens: hour === 10 ? 4_953 : hour === 11 ? 150 : 0,
+            })),
+            weekdayTotals: [
+              { weekday: 0, label: "周日", totalTokens: 0 },
+              { weekday: 1, label: "周一", totalTokens: 5_103 },
+              { weekday: 2, label: "周二", totalTokens: 0 },
+              { weekday: 3, label: "周三", totalTokens: 0 },
+              { weekday: 4, label: "周四", totalTokens: 0 },
+              { weekday: 5, label: "周五", totalTokens: 0 },
+              { weekday: 6, label: "周六", totalTokens: 0 },
+            ],
+          });
+        }
+        if (url.startsWith("/lynx/tokens/usage")) {
+          return createJsonResponse(createPage([
+            {
+              usageEventId: "usage-long-session",
+              sessionKey: longSessionKey,
+              runId: "run-token-audit-hook",
+              agentId: "main",
+              provider: "openclaw",
+              model: "openclaw/main",
+              sourceType: "actual",
+              sourceOrigin: "hook",
+              inputTokens: 4_900,
+              outputTokens: 80,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              totalTokens: 4_980,
+              assistantTextCount: 1,
+              isEstimated: false,
+              occurredAtMs: 1_777_353_600_000,
+            },
+            {
+              usageEventId: "usage-estimated-transcript",
+              sessionKey: "session-token-estimated-transcript",
+              runId: "run-token-audit-transcript",
+              agentId: "main",
+              provider: "bailian",
+              model: "glm-5",
+              sourceType: "estimated",
+              sourceOrigin: "transcript",
+              inputTokens: 0,
+              outputTokens: 123,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              totalTokens: 123,
+              assistantTextCount: 1,
+              isEstimated: true,
+              occurredAtMs: 1_777_350_000_000,
+            },
+          ]));
+        }
+        return createJsonResponse(createPage([]));
+      });
+
+      render(<TokensPage />);
+
+      expect(screen.getByText("正在刷新实时 token 数据")).toBeInTheDocument();
+      expect(screen.getAllByText("正在加载 Token 使用记录").length).toBeGreaterThanOrEqual(1);
+
+      const longSessionText = await screen.findByText(longSessionKey);
+      expect(longSessionText).toHaveClass("table-cell-ellipsis");
+      fireEvent.mouseEnter(longSessionText);
+      await waitFor(() => {
+        expectTooltipContent(longSessionKey);
+      });
+
+      const longSessionRow = longSessionText.closest("tr");
+      expect(longSessionRow).not.toBeNull();
+      expect(within(longSessionRow as HTMLElement).getByText("实时 hook")).toBeInTheDocument();
+      expect(within(longSessionRow as HTMLElement).getByText("实际")).toHaveClass("token-badge--actual");
+      expect(screen.getByText("Transcript 回填")).toBeInTheDocument();
+      expect(screen.getByText("估算", { selector: ".token-badge--estimated" })).toBeInTheDocument();
+
+      const summaryTotalLabel = screen.getAllByText("总量", { selector: ".metric-card__label" })[0];
+      const summaryTotalCard = summaryTotalLabel.closest(".metric-card");
+      expect(summaryTotalCard).not.toBeNull();
+      expect(within(summaryTotalCard as HTMLElement).getByText(/实际 .*估算/)).toBeInTheDocument();
+      expect(within(summaryTotalCard as HTMLElement).getByTitle("5,103 tokens")).toBeInTheDocument();
+
+      expect(await screen.findByTestId("token-trend-chart")).toBeInTheDocument();
+      expect(screen.getByTestId("token-trend-line-chart")).toHaveAttribute("viewBox", "0 0 720 132");
+      expect(screen.getByTitle("周一 · 5.1K tokens")).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "会话 ID" })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "输入 / 输出" })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "类型" })).toBeInTheDocument();
+    } finally {
+      restoreOverflow();
+    }
+  });
+
+  it("audits empty token data with explicit actual and estimated wording", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.startsWith("/lynx/tokens/summary")) {
+        return createJsonResponse({
+          totalTokens: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          actualTokens: 0,
+          estimatedTokens: 0,
+          measurableTokens: 0,
+          measurableInputTokens: 0,
+          measurableOutputTokens: 0,
+          measurableCacheReadTokens: 0,
+          measurableCacheWriteTokens: 0,
+          estimatedCount: 0,
+          unavailableCount: 0,
+          originTotals: [],
+          topModels: [],
+        });
+      }
+      if (url.startsWith("/lynx/tokens/trend")) {
+        return createJsonResponse({ bucket: "hour", points: [] });
+      }
+      if (url.startsWith("/lynx/tokens/heatmap")) {
+        return createJsonResponse({
+          timeZone: "local",
+          totalTokens: 0,
+          hourTotals: Array.from({ length: 24 }, (_, hour) => ({ hour, totalTokens: 0 })),
+          weekdayTotals: Array.from({ length: 7 }, (_, weekday) => ({
+            weekday,
+            label: `周${weekday}`,
+            totalTokens: 0,
+          })),
+        });
+      }
+      if (url.startsWith("/lynx/tokens/usage")) {
+        return createJsonResponse(createPage([]));
+      }
+      return createJsonResponse(createPage([]));
+    });
+
+    render(<TokensPage />);
+
+    expect(screen.getByText("Token 分析")).toBeInTheDocument();
+    expect(screen.getAllByText("正在加载 Token 使用记录").length).toBeGreaterThanOrEqual(1);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
+    expect(screen.getByText(/实际 0/)).toBeInTheDocument();
+    expect(screen.getByText(/估算 0/)).toBeInTheDocument();
+    expect(screen.getByText("暂无 Token 趋势")).toBeInTheDocument();
+    expect((await screen.findAllByText("暂无 Token 使用记录")).length).toBeGreaterThan(0);
   });
 });

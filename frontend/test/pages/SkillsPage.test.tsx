@@ -20,6 +20,22 @@ afterEach(() => {
 });
 
 describe("SkillsPage trust state labels", () => {
+  it("audits loading and empty skill inventory states", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(skillListResponse([])), { status: 200 })));
+
+    render(<SkillsPage />);
+
+    expect(screen.getByText("正在加载 Skill inventory")).toBeInTheDocument();
+    expect(screen.getByText("加载中")).toBeInTheDocument();
+    expect(screen.getAllByText("正在加载列表数据").length).toBeGreaterThanOrEqual(1);
+
+    expect((await screen.findAllByText("暂无数据")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("实时数据")).toBeInTheDocument();
+    expect(screen.getByText("匹配 Skill")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Skill" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Skill 来源分布")).toBeInTheDocument();
+  });
+
   it("separates OpenClaw native skills from other supply-chain channels", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(skillListResponse(
       [
@@ -312,5 +328,64 @@ describe("SkillsPage trust state labels", () => {
     await screen.findByText("Filtered Skill");
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/lynx/skills?q=filtered&pageNum=1&pageSize=20");
+  });
+
+  it("audits long skill values with readable trust, risk, source, and detail access", async () => {
+    const longSkillId = "very-long-skill-id-" + "supply-chain-audit-".repeat(8);
+    const longPath = "C:/Users/example/.openclaw/skills/" + "very-long-path-segment/".repeat(8) + "SKILL.md";
+    const longHash = "abcdef0123456789".repeat(6);
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(skillListResponse(
+      [
+        {
+          skillId: longSkillId,
+          name: "Very Long Skill",
+          source: "local",
+          installPath: longPath.replace(/\/SKILL\.md$/, ""),
+          manifestPath: longPath,
+          hashAlgorithm: "sha256",
+          baselineHash: "baseline-" + longHash,
+          currentHash: "current-" + longHash,
+          trustState: "hash_mismatch",
+          lastSeenAt: "2026-05-09T00:00:00Z",
+          metadata: {
+            inventoryChannel: {
+              kind: "other",
+              sourceKind: "local",
+              scanner: "file-system",
+            },
+          },
+          findings: [
+            {
+              findingId: "finding-1",
+              skillId: longSkillId,
+              severity: "high",
+              ruleId: "hash_mismatch",
+              message: "Skill current hash does not match its baseline.",
+              createdAt: "2026-05-09T00:00:00Z",
+            },
+          ],
+        },
+      ],
+      [{ sourceKind: "local", count: 1 }],
+    )), { status: 200 })));
+
+    render(<SkillsPage />);
+
+    const skillName = await screen.findByText("Very Long Skill");
+    const row = skillName.closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("哈希不一致")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("1 项风险")).toHaveClass("skills-finding-summary--danger");
+    expect(within(row as HTMLElement).getByText("用户 .openclaw")).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByText("hash_mismatch")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: `查看 ${longSkillId} Skill 详情` }));
+
+    expect(await screen.findByRole("dialog", { name: "Skill 详情" })).toBeInTheDocument();
+    expect(screen.getByText(longPath.replace(/\/SKILL\.md$/, ""))).toBeInTheDocument();
+    expect(screen.getByText(longPath)).toBeInTheDocument();
+    expect(screen.getByText("baseline-" + longHash)).toBeInTheDocument();
+    expect(screen.getByText("current-" + longHash)).toBeInTheDocument();
   });
 });
