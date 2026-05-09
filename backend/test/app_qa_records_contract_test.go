@@ -94,6 +94,43 @@ func TestQaRecordRoutesApplyListFilters(t *testing.T) {
 	expectString(t, listItem, "riskLevel", "L2")
 }
 
+func TestQaRecordRoutesApplyRepeatedStatusFilters(t *testing.T) {
+	handler, closer := buildParityHandler(t)
+	t.Cleanup(func() {
+		if err := closer(); err != nil {
+			t.Fatalf("closer returned error: %v", err)
+		}
+	})
+
+	completed := qaRecordFixture("qa-status-completed")
+	completedData := completed["data"].(map[string]any)
+	completedData["status"] = "completed"
+
+	failed := qaRecordFixture("qa-status-failed")
+	failedData := failed["data"].(map[string]any)
+	failedData["status"] = "failed"
+
+	running := qaRecordFixture("qa-status-running")
+	runningData := running["data"].(map[string]any)
+	runningData["status"] = "running"
+
+	seed := doJSON(t, handler, http.MethodPost, "/lynx/internal/v1/ingest/batch", fixtureBatchWithItems("qa-record-status-multi", []any{
+		completed,
+		failed,
+		running,
+	}), true)
+	decodeObjectStatus(t, seed, http.StatusOK)
+
+	repeated := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/qa-records?status=completed&status=failed&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	expectNumber(t, repeated, "total", 2)
+
+	comma := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/qa-records?status=completed,failed&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	expectNumber(t, comma, "total", 2)
+
+	summary := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/qa-records/summary?status=completed&status=failed", nil, false), http.StatusOK)
+	expectNumber(t, summary, "total", 2)
+}
+
 func TestQaRecordsSummaryAndListApplySameTimeRangeBeyondCurrentPage(t *testing.T) {
 	handler, closer := buildParityHandler(t)
 	t.Cleanup(func() {

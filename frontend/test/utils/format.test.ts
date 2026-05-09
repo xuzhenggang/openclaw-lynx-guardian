@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCompactTokens, formatInteger } from "../../src/utils/format";
+import {
+  formatCompactId,
+  formatCompactTokens,
+  formatInteger,
+} from "../../src/utils/format";
 
 describe("formatCompactTokens", () => {
   it("keeps small token values exact", () => {
@@ -31,5 +35,21 @@ describe("formatCompactTokens", () => {
 
   it("keeps exact integer formatting available for titles", () => {
     expect(formatInteger(2_170_856)).toBe("2,170,856");
+  });
+});
+
+describe("formatCompactId", () => {
+  it("keeps short IDs unchanged", () => {
+    expect(formatCompactId("short-id")).toBe("short-id");
+  });
+
+  it("compacts long IDs with a readable head and tail", () => {
+    expect(formatCompactId("approval_1234567890abcdef")).toBe("approval_...cdef");
+  });
+
+  it("supports custom head and tail lengths", () => {
+    expect(formatCompactId("toolcall_abcdef123456", { head: 4, tail: 6 })).toBe(
+      "tool...123456",
+    );
   });
 });

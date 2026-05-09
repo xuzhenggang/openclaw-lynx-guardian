@@ -20,35 +20,35 @@ type ToolCallsListQuery struct {
 	Limit             *int
 	Cursor            *string
 	ToolName          *string
-	ResultStatus      *string
+	ResultStatus      []string
 	ApprovalID        *string
 }
 
 type toolCallListRow struct {
-	ToolCallID        string
-	QARecordID        sql.NullString
-	SessionKey        sql.NullString
-	RunID             sql.NullString
-	ApprovalID        sql.NullString
-	ToolName          string
-	RiskLevel         sql.NullString
-	RiskScore         sql.NullInt64
-	PolicyDecision    sql.NullString
-	EnforcementAction string
-	StartedAt         int64
-	FinishedAt        sql.NullInt64
-	DurationMs        sql.NullInt64
-	ResultStatus      sql.NullString
-	ResultExcerpt     sql.NullString
+	ToolCallID           string
+	QARecordID           sql.NullString
+	SessionKey           sql.NullString
+	RunID                sql.NullString
+	ApprovalID           sql.NullString
+	ToolName             string
+	RiskLevel            sql.NullString
+	RiskScore            sql.NullInt64
+	PolicyDecision       sql.NullString
+	EnforcementAction    string
+	StartedAt            int64
+	FinishedAt           sql.NullInt64
+	DurationMs           sql.NullInt64
+	ParamSummary         sql.NullString
+	ParamHash            sql.NullString
+	TriggeredModulesJSON sql.NullString
+	ResultStatus         sql.NullString
+	ResultExcerpt        sql.NullString
+	ErrorText            sql.NullString
+	MetadataJSON         sql.NullString
 }
 
 type toolCallDetailRow struct {
 	toolCallListRow
-	ParamSummary         sql.NullString
-	ParamHash            sql.NullString
-	TriggeredModulesJSON sql.NullString
-	ErrorText            sql.NullString
-	MetadataJSON         sql.NullString
 }
 
 func (r *ToolCallsRepository) List(query ToolCallsListQuery) (service.PageResponse[map[string]any], error) {
@@ -74,7 +74,7 @@ func (r *ToolCallsRepository) List(query ToolCallsListQuery) (service.PageRespon
 	filter.AppendEquals("session_key", query.SessionKey)
 	filter.AppendEquals("run_id", query.RunID)
 	filter.AppendEquals("tool_name", query.ToolName)
-	filter.AppendEquals("result_status", query.ResultStatus)
+	filter.AppendIn("result_status", query.ResultStatus)
 	filter.AppendEquals("approval_id", query.ApprovalID)
 	filter.AppendRiskLevelIn("risk_level", query.RiskLevel)
 	filter.AppendIn("enforcement_action", mapStringSlice(query.EnforcementAction, toDBEnforcementAction))
@@ -89,7 +89,8 @@ func (r *ToolCallsRepository) List(query ToolCallsListQuery) (service.PageRespon
 		SELECT
 			tool_call_id, qa_record_id, session_key, run_id, approval_id, tool_name, risk_level,
 			risk_score, policy_decision, enforcement_action, started_at, finished_at,
-			duration_ms, result_status, result_excerpt
+			duration_ms, param_summary, param_hash, triggered_modules_json,
+			result_status, result_excerpt, error_text, metadata_json
 		FROM tool_calls `+filter.Where()+`
 		ORDER BY started_at DESC, tool_call_id DESC
 		LIMIT ? OFFSET ?`,
@@ -107,7 +108,8 @@ func (r *ToolCallsRepository) List(query ToolCallsListQuery) (service.PageRespon
 			&row.ToolCallID, &row.QARecordID, &row.SessionKey, &row.RunID, &row.ApprovalID,
 			&row.ToolName, &row.RiskLevel, &row.RiskScore, &row.PolicyDecision,
 			&row.EnforcementAction, &row.StartedAt, &row.FinishedAt, &row.DurationMs,
-			&row.ResultStatus, &row.ResultExcerpt,
+			&row.ParamSummary, &row.ParamHash, &row.TriggeredModulesJSON, &row.ResultStatus,
+			&row.ResultExcerpt, &row.ErrorText, &row.MetadataJSON,
 		); err != nil {
 			return service.PageResponse[map[string]any]{}, err
 		}
@@ -131,8 +133,8 @@ func (r *ToolCallsRepository) GetByID(toolCallID string) (map[string]any, error)
 		SELECT
 			tool_call_id, qa_record_id, session_key, run_id, approval_id, tool_name, risk_level,
 			risk_score, policy_decision, enforcement_action, started_at, finished_at,
-			duration_ms, result_status, result_excerpt, param_summary, param_hash,
-			triggered_modules_json, error_text, metadata_json
+			duration_ms, param_summary, param_hash, triggered_modules_json,
+			result_status, result_excerpt, error_text, metadata_json
 		FROM tool_calls
 		WHERE tool_call_id = ?`,
 		toolCallID,
@@ -140,8 +142,8 @@ func (r *ToolCallsRepository) GetByID(toolCallID string) (map[string]any, error)
 		&row.ToolCallID, &row.QARecordID, &row.SessionKey, &row.RunID, &row.ApprovalID,
 		&row.ToolName, &row.RiskLevel, &row.RiskScore, &row.PolicyDecision,
 		&row.EnforcementAction, &row.StartedAt, &row.FinishedAt, &row.DurationMs,
-		&row.ResultStatus, &row.ResultExcerpt, &row.ParamSummary, &row.ParamHash,
-		&row.TriggeredModulesJSON, &row.ErrorText, &row.MetadataJSON,
+		&row.ParamSummary, &row.ParamHash, &row.TriggeredModulesJSON,
+		&row.ResultStatus, &row.ResultExcerpt, &row.ErrorText, &row.MetadataJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -175,6 +177,8 @@ func mapToolCallListRow(row toolCallListRow) map[string]any {
 	putString(out, "policyDecision", row.PolicyDecision)
 	putInt64(out, "finishedAtMs", row.FinishedAt)
 	putInt64(out, "durationMs", row.DurationMs)
+	putString(out, "paramSummary", row.ParamSummary)
+	putJSONRecord(out, "metadataJson", row.MetadataJSON)
 	putString(out, "resultStatus", row.ResultStatus)
 	putString(out, "resultExcerpt", row.ResultExcerpt)
 	return out

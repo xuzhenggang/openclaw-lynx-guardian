@@ -12,16 +12,17 @@ import { paginateMockPage, usePagedListResource } from "../hooks/usePagedListRes
 import { formatDuration, formatInteger, formatTimestamp } from "../utils/format";
 import { formatQaRecordId } from "../utils/qa-records";
 import { formatToolLabel, renderStateBadge } from "../utils/status";
+import { resolveToolOperation } from "../utils/tool-display";
 
 interface ToolCallFilters {
   q: string;
-  resultStatus: string;
+  resultStatus: string[];
   toolName: string;
 }
 
 const EMPTY_FILTERS: ToolCallFilters = {
   q: "",
-  resultStatus: "",
+  resultStatus: [],
   toolName: "",
 };
 
@@ -37,7 +38,7 @@ function buildToolCallQuery(filters: ToolCallFilters): Omit<ToolCallListQuery, "
   return {
     q: filters.q.trim() || undefined,
     toolName: filters.toolName.trim() || undefined,
-    resultStatus: filters.resultStatus || undefined,
+    resultStatus: filters.resultStatus.length > 0 ? filters.resultStatus : undefined,
   };
 }
 
@@ -116,6 +117,7 @@ export function ToolCallsPage() {
   const statusText = error ? `工具调用数据加载失败：${error}` : loading ? "正在加载调用流水" : "详细审计记录基于 tool_calls 协议层追踪";
   const isDetailDialogOpen = Boolean(selectedDetail || detailError);
   const selectedScriptPreflight = selectedDetail?.metadataJson?.scriptPreflight;
+  const selectedOperation = selectedDetail ? resolveToolOperation(selectedDetail) : null;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -186,11 +188,13 @@ export function ToolCallsPage() {
             <span>状态</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="状态"
               options={RESULT_STATUS_OPTIONS}
               placeholder="全部状态"
-              value={draftFilters.resultStatus || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, resultStatus: value ?? "" }))}
+              value={draftFilters.resultStatus}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, resultStatus: value ?? [] }))}
             />
           </label>
           <label className="filter-field filter-field--search">
@@ -231,6 +235,7 @@ export function ToolCallsPage() {
           columns={[
             { key: "call", label: "调用" },
             { key: "tool", label: "工具名称" },
+            { key: "operation", label: "命令 / 操作" },
             { key: "status", label: "状态" },
             { key: "duration", label: "耗时" },
             { key: "summary", label: "结果摘要" },
@@ -242,6 +247,7 @@ export function ToolCallsPage() {
           onRetry={retry}
           rows={items.map((call) => ({
             id: call.toolCallId,
+            operation: resolveToolOperation(call).operationLabel,
             call: (
               <div className="row-stack">
                 <strong>{call.toolCallId}</strong>
@@ -255,7 +261,7 @@ export function ToolCallsPage() {
             time: formatTimestamp(call.startedAtMs),
             detail: (
               <button
-                aria-label={`查看 ${call.toolCallId} JSON 详情`}
+                aria-label={`查看 ${call.toolCallId} 工具调用详情`}
                 className="btn btn--compact"
                 disabled={detailLoadingId === call.toolCallId}
                 type="button"
@@ -391,6 +397,9 @@ export function ToolCallsPage() {
               </div>
               <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
                 {[
+                  { label: "执行命令", value: selectedOperation?.command ?? "暂无" },
+                  { label: "工作目录", value: selectedOperation?.cwd ?? "暂无" },
+                  { label: "参数", value: selectedOperation?.args ? selectedOperation.args.join(" ") : "暂无" },
                   { label: "参数摘要", value: selectedDetail.paramSummary ?? "暂无" },
                   { label: "参数哈希", value: selectedDetail.paramHash ?? "暂无" },
                   { label: "触发模块", value: formatList(selectedDetail.triggeredModules) },

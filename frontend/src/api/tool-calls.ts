@@ -10,7 +10,7 @@ import { buildQueryString, fetchJson } from "./client";
 
 export interface ToolCallListQuery extends CommonListQuery {
   toolName?: string;
-  resultStatus?: string;
+  resultStatus?: string[];
   approvalId?: string;
   riskLevel?: RiskLevel[];
   enforcementAction?: EnforcementAction[];

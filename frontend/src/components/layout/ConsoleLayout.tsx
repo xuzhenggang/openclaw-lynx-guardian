@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { PropsWithChildren } from "react";
 
 import type { ConsoleThemeMode } from "../../app/App";
+import { GlobalLoadingIndicator } from "../feedback/GlobalLoadingIndicator";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
 
@@ -50,6 +51,7 @@ export function ConsoleLayout({
           }}
           onThemeModeChange={onThemeModeChange}
         />
+        <GlobalLoadingIndicator />
         <div className="console-content">{children}</div>
       </main>
     </div>

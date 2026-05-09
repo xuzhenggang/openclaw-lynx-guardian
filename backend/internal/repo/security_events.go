@@ -29,7 +29,7 @@ type SecurityEventListQuery struct {
 	RunID      *string
 	QARecordID *string
 	RiskLevel  []string
-	EventKind  *string
+	EventKind  []string
 }
 
 type securityEventRow struct {
@@ -565,7 +565,7 @@ func securityEventMatchesQuery(event securityEventRow, query SecurityEventListQu
 	if query.ToMs != nil && event.OccurredAtMs > *query.ToMs {
 		return false
 	}
-	if query.EventKind != nil && *query.EventKind != "" && event.EventKind != *query.EventKind {
+	if len(query.EventKind) > 0 && !containsString(query.EventKind, event.EventKind) {
 		return false
 	}
 	if query.SessionKey != nil && *query.SessionKey != "" && event.SessionKey != *query.SessionKey {

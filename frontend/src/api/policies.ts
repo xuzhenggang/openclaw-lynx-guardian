@@ -1,4 +1,6 @@
-import { fetchJson } from "./client";
+import type { PageResponse } from "@lynx/local-console-shared";
+
+import { buildQueryString, fetchJson } from "./client";
 
 export interface PolicyRule {
   ruleId: string;
@@ -32,8 +34,35 @@ export interface PolicyOverview {
   protectedResources: ProtectedResource[];
 }
 
+export interface ProtectedResourceListQuery {
+  q?: string;
+  enabled?: boolean;
+  pageNum?: number;
+  pageSize?: number;
+  limit?: number;
+}
+
+export interface PolicyRuleListQuery {
+  q?: string;
+  kind?: PolicyRule["kind"];
+  scope?: PolicyRule["scope"];
+  patternType?: PolicyRule["patternType"];
+  enabled?: boolean;
+  pageNum?: number;
+  pageSize?: number;
+  limit?: number;
+}
+
 export function getPolicyOverview(): Promise<PolicyOverview> {
   return fetchJson<PolicyOverview>("/policies");
+}
+
+export function listProtectedResources(query: ProtectedResourceListQuery = {}): Promise<PageResponse<ProtectedResource>> {
+  return fetchJson<PageResponse<ProtectedResource>>(`/protected-resources${buildQueryString(query)}`);
+}
+
+export function listPolicyRules(query: PolicyRuleListQuery = {}): Promise<PageResponse<PolicyRule>> {
+  return fetchJson<PageResponse<PolicyRule>>(`/policy-rules${buildQueryString(query)}`);
 }
 
 export function createProtectedResource(input: {

@@ -33,6 +33,9 @@ func (s *Service) Update(ctx context.Context, input api.ChainUpdateRequest) (api
 	}
 	summary.ChainID = nonEmpty(input.ChainID, summary.ChainID)
 	summary.SessionKey = nonEmpty(input.SessionKey, summary.SessionKey)
+	summary.ChannelProfile = nonEmpty(input.ChannelProfile, summary.ChannelProfile)
+	summary.ChannelID = nonEmpty(input.ChannelID, summary.ChannelID)
+	summary.ConversationID = nonEmpty(input.ConversationID, summary.ConversationID)
 	appendSignals(&summary, input)
 
 	if err := s.repository.Upsert(ctx, input, summary, now); err != nil {

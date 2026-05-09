@@ -67,7 +67,7 @@ func RegisterSecurityEvents(router gin.IRoutes, repository *repo.SecurityEventsR
 			SessionKey: httpserver.ReadString(values, "sessionKey"),
 			RunID:      httpserver.ReadString(values, "runId"),
 			RiskLevel:  httpserver.ReadStringSlice(values, "riskLevel"),
-			EventKind:  httpserver.ReadString(values, "eventKind"),
+			EventKind:  httpserver.ReadStringSlice(values, "eventKind"),
 			PageNum:    httpserver.ReadInt(values, "pageNum"),
 			PageSize:   httpserver.ReadInt(values, "pageSize"),
 			Limit:      httpserver.ReadInt(values, "limit"),
@@ -88,7 +88,7 @@ func RegisterSecurityEvents(router gin.IRoutes, repository *repo.SecurityEventsR
 			SessionKey: httpserver.ReadString(values, "sessionKey"),
 			RunID:      httpserver.ReadString(values, "runId"),
 			RiskLevel:  httpserver.ReadStringSlice(values, "riskLevel"),
-			EventKind:  httpserver.ReadString(values, "eventKind"),
+			EventKind:  httpserver.ReadStringSlice(values, "eventKind"),
 		})
 		if err != nil {
 			c.JSON(500, gin.H{"ok": false, "message": err.Error()})
@@ -128,7 +128,7 @@ func RegisterToolCalls(router gin.IRoutes, repository *repo.ToolCallsRepository)
 			Limit:             httpserver.ReadInt(values, "limit"),
 			Cursor:            httpserver.ReadString(values, "cursor"),
 			ToolName:          httpserver.ReadString(values, "toolName"),
-			ResultStatus:      httpserver.ReadString(values, "resultStatus"),
+			ResultStatus:      httpserver.ReadStringSlice(values, "resultStatus"),
 			ApprovalID:        httpserver.ReadString(values, "approvalId"),
 		})
 		if err != nil {
@@ -205,8 +205,8 @@ func RegisterLynxChecks(router gin.IRoutes, repository *repo.LynxChecksRepositor
 			Limit:           httpserver.ReadInt(values, "limit"),
 			Cursor:          httpserver.ReadString(values, "cursor"),
 			Source:          httpserver.ReadString(values, "source"),
-			Trigger:         httpserver.ReadString(values, "trigger"),
-			Status:          httpserver.ReadString(values, "status"),
+			Trigger:         httpserver.ReadStringSlice(values, "trigger"),
+			Status:          httpserver.ReadStringSlice(values, "status"),
 			MessageProvider: httpserver.ReadString(values, "messageProvider"),
 		})
 		if err != nil {

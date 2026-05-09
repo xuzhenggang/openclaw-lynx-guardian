@@ -40,6 +40,7 @@ const COLUMN_SIZE_BY_KEY: Record<string, Partial<DataTableColumnSize>> = {
   lastSeen: { maxWidth: 210, minWidth: 160, width: 180 },
   model: { maxWidth: 220, minWidth: 160, width: 190 },
   modules: { maxWidth: 260, minWidth: 190, width: 220 },
+  operation: { maxWidth: 520, minWidth: 300, width: 420 },
   path: { maxWidth: 460, minWidth: 260, width: 360 },
   policy: { maxWidth: 160, minWidth: 128, width: 144 },
   profile: { maxWidth: 140, minWidth: 96, width: 116 },

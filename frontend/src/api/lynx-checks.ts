@@ -8,8 +8,8 @@ import { buildQueryString, fetchJson } from "./client";
 
 export interface LynxCheckListQuery extends CommonListQuery {
   source?: string;
-  trigger?: string;
-  status?: string;
+  trigger?: string[];
+  status?: string[];
   messageProvider?: string;
 }
 

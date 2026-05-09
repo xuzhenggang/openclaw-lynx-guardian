@@ -42,6 +42,12 @@ async function chooseSelectOption(name: string, optionText: string) {
   fireEvent.click(matches.at(-1)!);
 }
 
+async function chooseSelectOptions(name: string, optionTexts: string[]) {
+  for (const optionText of optionTexts) {
+    await chooseSelectOption(name, optionText);
+  }
+}
+
 describe("LynxChecksPage", () => {
   const fetchMock = vi.fn<typeof fetch>();
 
@@ -55,7 +61,7 @@ describe("LynxChecksPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses report paths from facts and evidenceBundle and avoids fake runtime status text", async () => {
+  it("separates report metadata, delivery status, markdown body, and path index", async () => {
     const fullReport = [
       "# Lynx Detection",
       "",
@@ -120,9 +126,12 @@ describe("LynxChecksPage", () => {
     expect(await screen.findByText("当前选中报告")).toBeInTheDocument();
     expect(screen.queryByText("最近检测报告")).not.toBeInTheDocument();
     expect(screen.getByTestId("lynx-checks-workspace")).toBeInTheDocument();
+    expect(screen.getByText("报告元信息")).toBeInTheDocument();
+    expect(screen.getByText("投递状态")).toBeInTheDocument();
+    expect(screen.getByText("报告正文")).toBeInTheDocument();
+    expect(screen.getByText("文件和路径索引")).toBeInTheDocument();
     expect(screen.queryByText("Task State")).not.toBeInTheDocument();
     expect(screen.queryByText("证据")).not.toBeInTheDocument();
-    expect(screen.queryByText("报告路径")).not.toBeInTheDocument();
     expect(screen.getByLabelText("关键词")).toBeInTheDocument();
     expect(screen.getByLabelText("处理状态")).toBeInTheDocument();
     expect(screen.getByText("qa-1")).toBeInTheDocument();
@@ -140,6 +149,8 @@ describe("LynxChecksPage", () => {
       expect(screen.getByTestId("lynx-check-report-markdown")).toHaveTextContent("失败投递的完整报告正文。");
     });
     expect(screen.getByText("报告：CHECK-EVIDENCE")).toBeInTheDocument();
+    expect(screen.getByText("错误信息")).toBeInTheDocument();
+    expect(screen.getByText("delivery failed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /导出/ })).not.toBeInTheDocument();
     expect(screen.getByText(".openclaw/lynx/check-runs/facts.report.md")).toBeInTheDocument();
     expect(screen.getByText(".openclaw/lynx/check-runs/evidence.report.md")).toBeInTheDocument();
@@ -172,13 +183,13 @@ describe("LynxChecksPage", () => {
     fireEvent.change(screen.getByLabelText("关键词"), {
       target: { value: "qa-42" },
     });
-    await chooseSelectOption("处理状态", "已完成");
-    await chooseSelectOption("触发方式", "命令触发");
+    await chooseSelectOptions("处理状态", ["已完成", "失败"]);
+    await chooseSelectOptions("触发方式", ["命令触发", "定时任务"]);
     fireEvent.click(screen.getByRole("button", { name: "应用筛选" }));
 
     await screen.findByText("CHECK-FILTERED");
     expect(fetchMock.mock.calls.map((call) => call[0])).toContain(
-      "/lynx/lynx-checks?q=qa-42&status=completed&trigger=lynx_command&pageNum=1&pageSize=20",
+      "/lynx/lynx-checks?q=qa-42&status=completed&status=failed&trigger=lynx_command&trigger=scheduled&pageNum=1&pageSize=20",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "重置条件" }));

@@ -6,6 +6,21 @@ function normalizeTokenValue(value: number): number {
   return Math.round(value);
 }
 
+export function formatCompactId(
+  value: string,
+  options: { head?: number; tail?: number } = {},
+): string {
+  const head = Math.max(1, options.head ?? 9);
+  const tail = Math.max(1, options.tail ?? 4);
+  const separator = "...";
+
+  if (value.length <= head + tail + separator.length) {
+    return value;
+  }
+
+  return `${value.slice(0, head)}${separator}${value.slice(-tail)}`;
+}
+
 export function formatCompactTokens(value: number): string {
   const safeValue = normalizeTokenValue(value);
 

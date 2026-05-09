@@ -5,6 +5,7 @@ import type {
   QaRecordDetailDto,
   QaRecordListItemDto,
   QaRecordSummaryDto,
+  RiskLevel,
   SecurityEventKind,
   SecurityEventListItemDto,
 } from "@lynx/local-console-shared";
@@ -20,6 +21,7 @@ import { DataTable } from "../components/tables/DataTable";
 import { TablePagination } from "../components/tables/TablePagination";
 import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatDuration, formatInteger, formatTimestamp } from "../utils/format";
+import { resolveUserVisiblePrompt } from "../utils/prompts";
 import { renderActionBadge, renderRiskBadge, renderStateBadge } from "../utils/status";
 
 const NODE_TYPE_LABELS: Record<QaChainNodeDto["type"], string> = {
@@ -47,15 +49,15 @@ type DateRangeValue = [Dayjs | null, Dayjs | null] | null;
 
 interface QaRecordFilters {
   q: string;
-  riskLevel: string;
-  status: string;
+  riskLevel: RiskLevel[];
+  status: string[];
   dateRange: DateRangeValue;
 }
 
 const EMPTY_FILTERS: QaRecordFilters = {
   q: "",
-  riskLevel: "",
-  status: "",
+  riskLevel: [],
+  status: [],
   dateRange: null,
 };
 
@@ -90,6 +92,7 @@ const RISK_OPTIONS = [
 ];
 
 const LOCAL_CONSOLE_CHARS_PER_TOKEN_ESTIMATE = 4;
+const MISSING_FINAL_ANSWER_TEXT = "历史记录未保存最终答复";
 const NON_LATIN_RE = /[\u2E80-\u9FFF\uA000-\uA4FF\uAC00-\uD7AF\uF900-\uFAFF\u{20000}-\u{2FA1F}]/gu;
 const CJK_SURROGATE_HIGH_RE = /[\uD840-\uD87E][\uDC00-\uDFFF]/g;
 
@@ -105,8 +108,8 @@ export function buildQaRecordDateRangeQuery(value: DateRangeValue): Pick<QaRecor
 function buildQaRecordQuery(filters: QaRecordFilters): Omit<QaRecordListQuery, "pageNum" | "pageSize"> {
   return {
     q: filters.q.trim() || undefined,
-    riskLevel: filters.riskLevel ? [filters.riskLevel as NonNullable<QaRecordListQuery["riskLevel"]>[number]] : undefined,
-    status: filters.status || undefined,
+    riskLevel: filters.riskLevel.length > 0 ? filters.riskLevel : undefined,
+    status: filters.status.length > 0 ? filters.status : undefined,
     ...buildQaRecordDateRangeQuery(filters.dateRange),
   };
 }
@@ -133,7 +136,36 @@ function renderCodeBlock(value: string | undefined, fallback = "暂无") {
 }
 
 function summarizeRecord(record: QaRecordListItemDto): string {
-  return record.userPromptExcerpt || record.finalAnswerExcerpt || record.qaRecordId;
+  return resolveUserVisiblePrompt(record) || record.finalAnswerExcerpt || record.qaRecordId;
+}
+
+function resolveQaPromptText(
+  record: QaRecordListItemDto | null,
+  detail: QaRecordDetailDto | null = null,
+): string {
+  return resolveUserVisiblePrompt({
+    detailJson: detail?.chainNodes.find((node) => node.type === "userPrompt")?.detailJson,
+    userPromptExcerpt: detail?.userPromptExcerpt ?? record?.userPromptExcerpt,
+  });
+}
+
+function resolveFinalAnswerText(
+  record: QaRecordListItemDto | null,
+  detail: QaRecordDetailDto | null,
+  detailError: string | null,
+): string {
+  const answer = detail?.finalAnswerExcerpt?.trim() || record?.finalAnswerExcerpt?.trim();
+  if (answer) {
+    return answer;
+  }
+  if (detailError) {
+    return "详情加载失败";
+  }
+  const status = detail?.status ?? record?.status;
+  if (status === "completed" || detail) {
+    return MISSING_FINAL_ANSWER_TEXT;
+  }
+  return "正在等待最终答复";
 }
 
 function asNumber(value: unknown): number | undefined {
@@ -190,7 +222,7 @@ function estimateCjkAwareTokensFromText(values: Array<string | undefined>): numb
 }
 
 function estimateQaTokenUsage(record: QaRecordListItemDto | null, detail: QaRecordDetailDto | null): number {
-  const prompt = detail?.userPromptExcerpt ?? record?.userPromptExcerpt;
+  const prompt = record || detail ? resolveQaPromptText(record, detail) : undefined;
   const finalAnswer = detail?.finalAnswerExcerpt ?? record?.finalAnswerExcerpt;
   const nodeSummaries = detail?.chainNodes
     .filter((node) => node.type === "userPrompt" || node.type === "finalAnswer")
@@ -500,22 +532,26 @@ export function QaRecordsPage() {
             <span>状态</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="状态"
               options={STATUS_OPTIONS}
               placeholder="全部状态"
-              value={draftFilters.status || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, status: value ?? "" }))}
+              value={draftFilters.status}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, status: value ?? [] }))}
             />
           </label>
           <label className="filter-field">
             <span>风险等级</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="风险等级"
               options={RISK_OPTIONS}
               placeholder="全部级别"
-              value={draftFilters.riskLevel || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, riskLevel: value ?? "" }))}
+              value={draftFilters.riskLevel}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, riskLevel: value ?? [] }))}
             />
           </label>
           <label className="filter-field filter-field--date-range">
@@ -550,7 +586,7 @@ export function QaRecordsPage() {
         <div className="panel__header">
           <div>
             <h2 className="panel__title">问答列表</h2>
-            <p className="panel__subtitle">点击任意一行查看工具链路、审批和关联审计事件的详情。</p>
+            <p className="panel__subtitle">工具链路、审批和关联审计事件按问答汇总。</p>
           </div>
         </div>
         <DataTable
@@ -561,21 +597,31 @@ export function QaRecordsPage() {
             { key: "status", label: "状态", maxWidth: 112, minWidth: 92, width: 100 },
             { key: "risk", label: "风险", maxWidth: 118, minWidth: 96, width: 106 },
             { key: "toolCalls", label: "工具调用", maxWidth: 132, minWidth: 104, width: 116 },
+            { key: "detail", label: "详情", maxWidth: 120, minWidth: 96, width: 104 },
           ]}
           emptyDescription="暂无问答记录"
           error={error}
           loading={loading}
           loadingLabel="正在加载问答记录列表"
           onRetry={retry}
-          onRowClick={(row) => handleSelectRecord(row.id)}
           rows={items.map((record) => ({
             id: record.qaRecordId,
             time: formatTimestamp(record.startedAtMs),
             qaId: <strong>{record.qaRecordId}</strong>,
-            prompt: record.userPromptExcerpt || "暂无输入",
+            prompt: resolveQaPromptText(record),
             status: renderStateBadge(record.status),
             risk: renderRiskBadge(record.riskLevel),
             toolCalls: `${formatInteger(record.toolCallCount)} 次`,
+            detail: (
+              <button
+                aria-label={`查看 ${record.qaRecordId} 问答详情`}
+                className="btn btn--compact"
+                type="button"
+                onClick={() => handleSelectRecord(record.qaRecordId)}
+              >
+                详情
+              </button>
+            ),
           }))}
           selectedRowId={selectedRecordId ?? undefined}
         />
@@ -594,11 +640,11 @@ export function QaRecordsPage() {
         <div className="qa-record-summary">
           <article>
             <span>用户问题</span>
-            <strong>{detail?.userPromptExcerpt ?? selectedRecord?.userPromptExcerpt ?? "暂无"}</strong>
+            <strong>{resolveQaPromptText(selectedRecord, detail)}</strong>
           </article>
           <article>
             <span>最终答复</span>
-            <strong>{detail?.finalAnswerExcerpt ?? selectedRecord?.finalAnswerExcerpt ?? (detailError ? "详情加载失败" : "正在加载")}</strong>
+            <strong>{resolveFinalAnswerText(selectedRecord, detail, detailError)}</strong>
           </article>
           <article>
             <span>状态 / 风险 / Token</span>

@@ -125,6 +125,34 @@ func TestSecurityEventsLynxCheckProcessEvent(t *testing.T) {
 	expectString(t, item, "runId", "lynx-process-1")
 }
 
+func TestSecurityEventsRepeatedEventKindFilters(t *testing.T) {
+	handler, closer := buildParityHandler(t)
+	t.Cleanup(func() {
+		if err := closer(); err != nil {
+			t.Fatalf("closer returned error: %v", err)
+		}
+	})
+
+	items := []any{
+		securityQARecordFixture("qa-event-kind-multi"),
+		securityToolCallFixture("qa-event-kind-multi", "tool-event-kind-multi", "exec", "L4", "block"),
+	}
+	seed := doJSON(t, handler, http.MethodPost, "/lynx/internal/v1/ingest/batch", fixtureBatchWithItems("security-event-kind-multi", items), true)
+	decodeObjectStatus(t, seed, http.StatusOK)
+
+	repeated := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/security-events?eventKind=input&eventKind=tool&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	expectNumber(t, repeated, "total", 2)
+	kinds := securityEventsByKindSubset(t, repeated, []string{"input", "tool"})
+	expectString(t, kinds["input"], "eventKind", "input")
+	expectString(t, kinds["tool"], "eventKind", "tool")
+
+	comma := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/security-events?eventKind=input,tool&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	expectNumber(t, comma, "total", 2)
+
+	summary := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/security-events/summary?eventKind=input&eventKind=tool", nil, false), http.StatusOK)
+	expectNumber(t, summary, "total", 2)
+}
+
 func TestSecurityEventsTimeIsTopLevelField(t *testing.T) {
 	handler, closer := buildParityHandler(t)
 	t.Cleanup(func() {
@@ -325,6 +353,11 @@ func securityLynxCheckFixture(requestID string) map[string]any {
 
 func securityEventsByKind(t *testing.T, payload map[string]any) map[string]map[string]any {
 	t.Helper()
+	return securityEventsByKindSubset(t, payload, []string{"input", "tool", "output"})
+}
+
+func securityEventsByKindSubset(t *testing.T, payload map[string]any, want []string) map[string]map[string]any {
+	t.Helper()
 	out := map[string]map[string]any{}
 	for _, item := range securityEventItems(t, payload) {
 		kind, _ := item["eventKind"].(string)
@@ -332,7 +365,7 @@ func securityEventsByKind(t *testing.T, payload map[string]any) map[string]map[s
 			out[kind] = item
 		}
 	}
-	for _, kind := range []string{"input", "tool", "output"} {
+	for _, kind := range want {
 		if _, ok := out[kind]; !ok {
 			t.Fatalf("expected security event kind %s in %#v", kind, payload["items"])
 		}

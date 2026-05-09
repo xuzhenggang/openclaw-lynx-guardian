@@ -8,7 +8,7 @@ import type {
 import { buildQueryString, fetchJson } from "./client";
 
 export interface QaRecordListQuery extends CommonListQuery {
-  status?: string;
+  status?: string[];
 }
 
 export function listQaRecords(query: QaRecordListQuery = {}): Promise<QaRecordListResponse> {

@@ -1,5 +1,7 @@
 import { LOCAL_CONSOLE_API_BASE_PATH } from "@lynx/local-console-shared";
 
+import { beginGlobalRequest } from "../app/loading-store";
+
 type QueryPrimitive = string | number | boolean;
 type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
 
@@ -79,10 +81,15 @@ export function buildQueryString<T extends object>(query: T): string {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(resolveRequestPath(path), init);
-  if (!response.ok) {
-    throw new Error(await resolveErrorMessage(response));
-  }
+  const finishGlobalRequest = beginGlobalRequest();
+  try {
+    const response = await fetch(resolveRequestPath(path), init);
+    if (!response.ok) {
+      throw new Error(await resolveErrorMessage(response));
+    }
 
-  return response.json() as Promise<T>;
+    return await response.json() as T;
+  } finally {
+    finishGlobalRequest();
+  }
 }

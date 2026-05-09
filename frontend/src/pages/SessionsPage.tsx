@@ -4,7 +4,6 @@ import { Button, Input, Select } from "antd";
 
 import { getSessionDetail, listSessions, type SessionListQuery } from "../api/sessions";
 import { MetricCard } from "../components/cards/MetricCard";
-import { DetailPanel } from "../components/detail/DetailPanel";
 import { StatusBadge } from "../components/feedback/StatusBadge";
 import { PageHeader } from "../components/layout/PageHeader";
 import { DataTable } from "../components/tables/DataTable";
@@ -23,6 +22,57 @@ function formatTokenSummary(summary: SessionDetailDto["tokenSummary"] | undefine
     `输入：${formatInteger(summary.inputTokens ?? 0)}`,
     `输出：${formatInteger(summary.outputTokens ?? 0)}`,
   ].join("\n");
+}
+
+function formatMaybe(value: string | number | undefined | null): string {
+  if (value === undefined || value === null || value === "") {
+    return "暂无";
+  }
+  return String(value);
+}
+
+function formatGroupState(value: boolean | undefined): string {
+  if (value === undefined) {
+    return "暂无";
+  }
+  return value ? "群聊" : "单聊";
+}
+
+function formatRecentTools(detail: SessionDetailDto | null): string {
+  const tools = detail?.recentToolCalls ?? [];
+  if (tools.length === 0) {
+    return "暂无";
+  }
+  return tools.map((tool) => `${tool.toolName}（${tool.toolCallId}）`).join("\n");
+}
+
+function formatRecentApprovals(detail: SessionDetailDto | null): string {
+  const approvals = detail?.recentApprovals ?? [];
+  if (approvals.length === 0) {
+    return "暂无";
+  }
+  return approvals
+    .map((approval) => `${approval.approvalId}（${formatDomainLabel(approval.module)} / ${approval.riskLevel}）`)
+    .join("\n");
+}
+
+function formatRecentSecurityEvents(detail: SessionDetailDto | null): string {
+  const events = detail?.recentEvents ?? [];
+  if (events.length === 0) {
+    return "暂无";
+  }
+  return events
+    .map((event) => `${event.title}（${formatDomainLabel(event.enforcementAction)}）`)
+    .join("\n");
+}
+
+function renderSessionField(label: string, value: string) {
+  return (
+    <div className="detail-panel__field" key={label}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
 }
 
 interface SessionFilters {
@@ -110,6 +160,8 @@ export function SessionsPage() {
       }
     }
 
+    setDetail(null);
+    setDetailError(null);
     void loadDetail();
 
     return () => {
@@ -117,6 +169,8 @@ export function SessionsPage() {
     };
   }, [selectedSessionKey]);
 
+  const selectedListItem = items.find((item) => item.sessionKey === selectedSessionKey) ?? null;
+  const selectedSession = detail ?? selectedListItem;
   const activeCount = items.filter((item) => !item.endedAtMs).length;
   const groupCount = items.filter((item) => item.isGroup).length;
   const highRiskCount = items.filter((item) => (item.highRiskEventCount ?? 0) > 0).length;
@@ -239,20 +293,42 @@ export function SessionsPage() {
           />
           <TablePagination {...paginationProps} />
         </article>
-        <DetailPanel
-          title={detail?.sessionKey ?? "暂无会话"}
-          subtitle={
-            detail
-              ? `${formatDomainLabel(detail.channelProfile)} · ${detail.requesterOuId ?? "暂无请求人"}`
-              : "等待后端返回会话详情"
-          }
-          fields={[
-            { label: "最近事件", value: formatInteger(detail?.recentEvents.length ?? 0) },
-            { label: "最近工具调用", value: formatInteger(detail?.recentToolCalls.length ?? 0) },
-            { label: "最近审批", value: formatInteger(detail?.recentApprovals.length ?? 0) },
-            { label: "令牌摘要", value: formatTokenSummary(detail?.tokenSummary) },
-          ]}
-        />
+        <aside className="panel detail-panel session-detail-panel">
+          <div className="panel__header">
+            <div>
+              <h2 className="panel__title">会话详情</h2>
+              <p className="panel__subtitle">
+                {selectedSession ? `会话：${selectedSession.sessionKey}` : "等待后端返回会话详情"}
+              </p>
+            </div>
+          </div>
+          <section className="session-detail-section" aria-label="会话元信息">
+            <h3 className="panel__title">会话元信息</h3>
+            <dl className="detail-panel__grid">
+              {renderSessionField("会话标识", selectedSession ? `会话：${selectedSession.sessionKey}` : "暂无")}
+              {renderSessionField("渠道", formatDomainLabel(selectedSession?.channelProfile))}
+              {renderSessionField("渠道 ID", formatMaybe(selectedSession?.channelId))}
+              {renderSessionField("会话 ID", formatMaybe(selectedSession?.conversationId))}
+              {renderSessionField("请求人", formatMaybe(selectedSession?.requesterOuId ?? selectedSession?.requesterId))}
+              {renderSessionField("账号", formatMaybe(selectedSession?.accountId))}
+              {renderSessionField("群聊状态", formatGroupState(selectedSession?.isGroup))}
+              {renderSessionField("首次出现", selectedSession ? formatTimestamp(selectedSession.firstSeenAtMs) : "暂无")}
+              {renderSessionField("最近活动", selectedSession ? formatTimestamp(selectedSession.lastSeenAtMs) : "暂无")}
+            </dl>
+          </section>
+          <section className="session-detail-section" aria-label="会话活动摘要">
+            <h3 className="panel__title">会话活动摘要</h3>
+            <dl className="detail-panel__grid">
+              {renderSessionField("会话事件数", formatInteger(selectedSession?.eventCount ?? 0))}
+              {renderSessionField("高风险事件", formatInteger(selectedSession?.highRiskEventCount ?? 0))}
+              {renderSessionField("工具调用数", formatInteger(selectedSession?.toolCallCount ?? 0))}
+              {renderSessionField("最近工具", formatRecentTools(detail))}
+              {renderSessionField("最近审批", formatRecentApprovals(detail))}
+              {renderSessionField("最近安全事件", formatRecentSecurityEvents(detail))}
+              {renderSessionField("Token 摘要", formatTokenSummary(detail?.tokenSummary))}
+            </dl>
+          </section>
+        </aside>
       </section>
     </div>
   );
