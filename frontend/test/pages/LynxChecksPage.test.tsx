@@ -10,6 +10,18 @@ function createJsonResponse(data: unknown): Response {
   } as Response;
 }
 
+function deferredResponse(data: unknown) {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>((nextResolve) => {
+    resolve = nextResolve;
+  });
+
+  return {
+    promise,
+    resolve: () => resolve(createJsonResponse(data)),
+  };
+}
+
 function createCheck(overrides: Record<string, unknown>) {
   return {
     requestId: "CHECK-001",
@@ -59,6 +71,74 @@ describe("LynxChecksPage", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("prioritizes markdown body, avoids duplicate ID hero, and keeps path text horizontal", async () => {
+    const longReportPath = ".openclaw/lynx/check-runs/2026-05-09T120000.very-long-local-console-acceptance-report.report.md";
+    const fullMarkdownReport = [
+      "# Lynx 检测报告",
+      "",
+      "## 真实报告正文",
+      "这里是运行时生成的检测报告正文，不是路径列表。",
+      ...Array.from({ length: 12 }, (_, index) => `- 证据 ${index + 1}: 页面需要优先展示正文。`),
+    ].join("\n");
+
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/lynx-checks/CHECK-BODY") {
+        return createJsonResponse({
+          ...createCheck({ requestId: "CHECK-BODY", reportPath: longReportPath }),
+          reportMarkdown: fullMarkdownReport,
+        });
+      }
+      return createJsonResponse(createPage([
+        createCheck({ requestId: "CHECK-BODY", reportPath: longReportPath }),
+      ]));
+    });
+
+    const { container } = render(<LynxChecksPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "查看 CHECK-BODY 检测报告" }));
+
+    const markdown = await screen.findByTestId("lynx-check-report-markdown");
+    expect(markdown).toHaveTextContent("## 真实报告正文");
+    expect(container.querySelector(".report-path-index")).not.toHaveAttribute("open");
+    expect(container.querySelector(".report-path")).toHaveStyle({ writingMode: "horizontal-tb" });
+    expect(container.querySelector(".report-side-panel .panel__subtitle")).not.toHaveTextContent("CHECK-BODY");
+    expect(screen.queryAllByText("CHECK-BODY").length).toBeLessThanOrEqual(2);
+  });
+
+  it("does not show stale report markdown while a newly selected report detail is pending", async () => {
+    const pendingDetailB = deferredResponse({
+      ...createCheck({ requestId: "CHECK-B" }),
+      reportMarkdown: "B_ONLY_MARKDOWN",
+    });
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/lynx-checks/CHECK-A") {
+        return createJsonResponse({
+          ...createCheck({ requestId: "CHECK-A" }),
+          reportMarkdown: "A_ONLY_MARKDOWN",
+        });
+      }
+      if (url === "/lynx/lynx-checks/CHECK-B") {
+        return pendingDetailB.promise;
+      }
+      return createJsonResponse(createPage([
+        createCheck({ requestId: "CHECK-A" }),
+        createCheck({ requestId: "CHECK-B" }),
+      ]));
+    });
+
+    render(<LynxChecksPage />);
+
+    expect(await screen.findByText("A_ONLY_MARKDOWN")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看 CHECK-B 检测报告" }));
+
+    expect(screen.getByText("请求：CHECK-B")).toBeInTheDocument();
+    expect(screen.queryByText("A_ONLY_MARKDOWN")).not.toBeInTheDocument();
+
+    pendingDetailB.resolve();
+    expect(await screen.findByText("B_ONLY_MARKDOWN")).toBeInTheDocument();
   });
 
   it("separates report metadata, delivery status, markdown body, and path index", async () => {
@@ -148,7 +228,7 @@ describe("LynxChecksPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("lynx-check-report-markdown")).toHaveTextContent("失败投递的完整报告正文。");
     });
-    expect(screen.getByText("报告：CHECK-EVIDENCE")).toBeInTheDocument();
+    expect(screen.getByText("请求：CHECK-EVIDENCE")).toBeInTheDocument();
     expect(screen.getByText("错误信息")).toBeInTheDocument();
     expect(screen.getByText("delivery failed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /导出/ })).not.toBeInTheDocument();

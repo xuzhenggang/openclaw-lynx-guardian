@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionsPage } from "../../src/pages/SessionsPage";
@@ -8,6 +8,18 @@ function createJsonResponse(data: unknown): Response {
     ok: true,
     json: async () => data,
   } as Response;
+}
+
+function deferredResponse(data: unknown) {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>((nextResolve) => {
+    resolve = nextResolve;
+  });
+
+  return {
+    promise,
+    resolve: () => resolve(createJsonResponse(data)),
+  };
 }
 
 function createSession(sessionKey: string, overrides: Record<string, unknown> = {}) {
@@ -94,6 +106,168 @@ describe("SessionsPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("summarizes high-activity session detail instead of rendering a raw right-panel dump", async () => {
+    const detail = createSessionDetail("session-heavy", 9999, {
+      eventCount: 6,
+      toolCallCount: 4,
+      recentEvents: Array.from({ length: 6 }, (_, index) => ({
+        eventId: `event-heavy-${index}`,
+        sourceKind: "hook",
+        hookName: "before_tool_call",
+        eventType: "security",
+        category: "tool",
+        enforcementAction: "allow",
+        title: `安全事件 ${index + 1}`,
+        occurredAtMs: 1_776_945_610_000 + index,
+      })),
+      recentToolCalls: Array.from({ length: 4 }, (_, index) => ({
+        toolCallId: `tool-heavy-${index}`,
+        toolName: "exec",
+        metadataJson: { command: `Get-Content file-${index}.txt` },
+        enforcementAction: "allow",
+        startedAtMs: 1_776_945_620_000 + index,
+      })),
+    });
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/sessions/session-heavy") return createJsonResponse(detail);
+      return createJsonResponse(createPage([createSession("session-heavy", { eventCount: 6, toolCallCount: 4 })]));
+    });
+
+    render(<SessionsPage />);
+
+    await screen.findByText("session-heavy");
+    expect(await screen.findByText("会话摘要")).toBeInTheDocument();
+    expect(screen.getByText(/4 次工具调用/)).toBeInTheDocument();
+    expect(screen.getByText(/6 条安全事件/)).toBeInTheDocument();
+    expect(screen.queryAllByText("暂无").length).toBeLessThan(3);
+  });
+
+  it("uses human recent activity summaries with full IDs in tooltip or detail", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/sessions/session-a") return createJsonResponse(createSessionDetail("session-a", 111));
+      return createJsonResponse(createPage([createSession("session-a")]));
+    });
+
+    render(<SessionsPage />);
+
+    await screen.findByText("session-a");
+    expect(await screen.findByText(/shell_session-a/)).toBeInTheDocument();
+    expect(screen.queryByText(/^tool-session-a$/)).not.toBeInTheDocument();
+    expect(screen.getByTitle(/tool-session-a/)).toBeInTheDocument();
+  });
+
+  it("exposes full long recent tool commands and raw IDs through title while keeping a human summary visible", async () => {
+    const longCommand = 'powershell -NoProfile -Command "Get-ChildItem C:\\Users\\24716\\.openclaw\\extensions\\openclaw-lynx-guardian -Filter package.json -Recurse | Select-Object -First 1 FullName"';
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/sessions/session-long-command") {
+        return createJsonResponse(createSessionDetail("session-long-command", 111, {
+          recentToolCalls: [
+            {
+              toolCallId: "tool-long-command-raw-id",
+              toolName: "exec",
+              metadataJson: { command: longCommand },
+              enforcementAction: "allow",
+              startedAtMs: 1_776_945_620_000,
+            },
+          ],
+        }));
+      }
+      return createJsonResponse(createPage([createSession("session-long-command")]));
+    });
+
+    render(<SessionsPage />);
+
+    await screen.findByText("session-long-command");
+    const commandMatches = await screen.findAllByText(new RegExp(longCommand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    expect(commandMatches.length).toBeGreaterThanOrEqual(2);
+    const toolSummary = screen.getByTitle(/tool-long-command-raw-id/);
+    expect(toolSummary).toHaveTextContent(longCommand);
+    expect(toolSummary).toHaveAttribute("title", expect.stringContaining(longCommand));
+    expect(toolSummary).toHaveAttribute("title", expect.stringContaining("tool-long-command-raw-id"));
+    const disclosure = screen.getByText("完整工具详情").closest("details");
+    expect(disclosure).not.toBeNull();
+    expect(within(disclosure!).getByText(new RegExp(longCommand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
+  });
+
+  it("does not show stale session activity while a newly selected session detail is pending", async () => {
+    const pendingSessionB = deferredResponse(createSessionDetail("session-b", 222, {
+      recentToolCalls: [
+        {
+          toolCallId: "tool-session-b",
+          toolName: "shell_session_b",
+          metadataJson: { command: "B_ONLY_COMMAND" },
+          enforcementAction: "allow",
+          startedAtMs: 1_776_945_620_000,
+        },
+      ],
+    }));
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/sessions/session-a") {
+        return createJsonResponse(createSessionDetail("session-a", 111, {
+          recentToolCalls: [
+            {
+              toolCallId: "tool-session-a",
+              toolName: "shell_session_a",
+              metadataJson: { command: "A_ONLY_COMMAND" },
+              enforcementAction: "allow",
+              startedAtMs: 1_776_945_620_000,
+            },
+          ],
+        }));
+      }
+      if (url === "/lynx/sessions/session-b") {
+        return pendingSessionB.promise;
+      }
+      return createJsonResponse(createPage([
+        createSession("session-a"),
+        createSession("session-b"),
+      ]));
+    });
+
+    render(<SessionsPage />);
+
+    expect((await screen.findAllByText(/A_ONLY_COMMAND/)).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText("session-b"));
+
+    expect(screen.getAllByTitle("session-b").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/A_ONLY_COMMAND/)).not.toBeInTheDocument();
+
+    pendingSessionB.resolve();
+    expect((await screen.findAllByText(/B_ONLY_COMMAND/)).length).toBeGreaterThan(0);
+  });
+
+  it("uses shared tool operation resolution for recent tool args and exposes full details accessibly", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/sessions/session-args") {
+        return createJsonResponse(createSessionDetail("session-args", 111, {
+          recentToolCalls: [
+            {
+              toolCallId: "tool-args-raw-id",
+              toolName: "exec",
+              metadataJson: { args: ["Get-Content", "package.json"] },
+              enforcementAction: "allow",
+              startedAtMs: 1_776_945_620_000,
+            },
+          ],
+        }));
+      }
+      return createJsonResponse(createPage([createSession("session-args")]));
+    });
+
+    render(<SessionsPage />);
+
+    await screen.findByText("session-args");
+    expect(await screen.findByText(/exec：Get-Content package\.json/)).toBeInTheDocument();
+    expect(screen.getByText("完整工具详情")).toBeInTheDocument();
+    expect(screen.getByText(/工具调用 ID：tool-args-raw-id/)).toBeInTheDocument();
+    expect(screen.getByText(/命令：Get-Content package\.json/)).toBeInTheDocument();
+  });
+
   it("loads the first session detail and switches detail when a different session row is clicked", async () => {
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
@@ -141,7 +315,7 @@ describe("SessionsPage", () => {
     expect(screen.getByText("最近工具")).toBeInTheDocument();
     expect(screen.getByText(/shell_session-b/)).toBeInTheDocument();
     expect(screen.getByText("最近审批")).toBeInTheDocument();
-    expect(screen.getByText(/approval-session-b/)).toBeInTheDocument();
+    expect(screen.getByTitle(/approval-session-b/)).toBeInTheDocument();
     expect(screen.getByText("最近安全事件")).toBeInTheDocument();
     expect(screen.getByText(/Security event session-b/)).toBeInTheDocument();
     expect(screen.getByText("Token 摘要")).toBeInTheDocument();

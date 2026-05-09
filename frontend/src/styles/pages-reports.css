@@ -13,6 +13,10 @@
   font-weight: 700;
 }
 
+.report-side-panel__paths summary {
+  cursor: pointer;
+}
+
 .report-side-panel__meta code,
 .report-side-panel__paths code {
   display: block;
@@ -24,6 +28,13 @@
   font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 6px 8px;
+}
+
+.report-path {
+  max-width: 100%;
+  writing-mode: horizontal-tb;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .report-side-panel__section {

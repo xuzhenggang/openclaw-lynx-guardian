@@ -222,9 +222,10 @@ export function LynxChecksPage() {
   }, [selectedRequestId]);
 
   const selectedListItem = items.find((item) => item.requestId === selectedRequestId) ?? null;
-  const selectedRecord = selectedDetail ?? selectedListItem;
+  const selectedDetailForRequest = selectedDetail?.requestId === selectedRequestId ? selectedDetail : null;
+  const selectedRecord = selectedDetailForRequest ?? selectedListItem;
   const selectedReportPath = selectedRecord ? resolveReportPath(selectedRecord) : "--";
-  const selectedErrorMessage = selectedDetail?.errorMessage ?? selectedListItem?.errorMessage;
+  const selectedErrorMessage = selectedDetailForRequest?.errorMessage ?? selectedListItem?.errorMessage;
   const reportEntries = items
     .map((item) => ({
       requestId: item.requestId,
@@ -365,13 +366,17 @@ export function LynxChecksPage() {
             <div>
               <h2 className="panel__title">当前选中报告</h2>
               <p className="panel__subtitle">
-                {selectedDetail?.requestId || selectedRequestId ? `报告：${selectedDetail?.requestId ?? selectedRequestId}` : "暂无记录"}
+                {selectedRequestId ? "报告正文优先展示，ID 和路径保留在下方元信息。" : "暂无记录"}
               </p>
             </div>
             <span className="status-badge status-badge--info">
               {runningCount > 0 ? `${runningCount} 个运行中` : selectedRequestId ? "选中记录" : "暂无记录"}
             </span>
           </div>
+
+          {detailError ? (
+            <p className="small-note">检测报告详情加载失败：{detailError}</p>
+          ) : renderReportMarkdown(selectedDetailForRequest?.reportMarkdown)}
 
           <section className="report-side-panel__section" aria-label="报告元信息">
             <h3 className="report-side-panel__sectionTitle">报告元信息</h3>
@@ -386,7 +391,7 @@ export function LynxChecksPage() {
               {renderDetailField("来源类型", selectedRecord ? formatDomainLabel(selectedRecord.source) : "暂无")}
               {renderDetailField("创建时间", selectedRecord ? formatTimestamp(selectedRecord.createdAtMs) : "暂无")}
               {renderDetailField("完成时间", selectedRecord?.completedAtMs ? formatTimestamp(selectedRecord.completedAtMs) : "暂无")}
-              {renderDetailField("报告路径", selectedReportPath === "--" ? "暂无" : <code>路径：{selectedReportPath}</code>)}
+              {renderDetailField("报告路径", selectedReportPath === "--" ? "暂无" : <code className="report-path" title={selectedReportPath}>路径：{selectedReportPath}</code>)}
             </div>
           </section>
 
@@ -400,17 +405,14 @@ export function LynxChecksPage() {
             </div>
           </section>
 
-          {detailError ? (
-            <p className="small-note">检测报告详情加载失败：{detailError}</p>
-          ) : renderReportMarkdown(selectedDetail?.reportMarkdown)}
           {selectedReportPath !== "--" || reportEntries.length > 0 ? (
-            <section className="report-side-panel__paths" aria-label="文件和路径索引">
-              <span>文件和路径索引</span>
-              {selectedReportPath !== "--" ? <code>当前报告：{selectedReportPath}</code> : null}
+            <details className="report-side-panel__paths report-path-index" aria-label="文件和路径索引">
+              <summary>文件和路径索引</summary>
+              {selectedReportPath !== "--" ? <code className="report-path" title={selectedReportPath}>当前报告：{selectedReportPath}</code> : null}
               {reportEntries.map((entry) => (
-                <code key={entry.requestId} title={entry.requestId}>{entry.reportPath}</code>
+                <code className="report-path" key={entry.requestId} title={`${entry.requestId}: ${entry.reportPath}`}>{entry.reportPath}</code>
               ))}
-            </section>
+            </details>
           ) : null}
         </article>
       </section>

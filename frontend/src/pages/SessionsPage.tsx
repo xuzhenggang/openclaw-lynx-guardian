@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState, type FormEvent } from "react";
+import { startTransition, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { SessionDetailDto, SessionListItemDto } from "@lynx/local-console-shared";
 import { Button, Input, Select } from "antd";
 
@@ -11,6 +11,7 @@ import { TablePagination } from "../components/tables/TablePagination";
 import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatInteger, formatTimestamp } from "../utils/format";
 import { formatDomainLabel, renderRiskBadge } from "../utils/status";
+import { resolveToolOperation } from "../utils/tool-display";
 
 function formatTokenSummary(summary: SessionDetailDto["tokenSummary"] | undefined) {
   if (!summary) {
@@ -31,6 +32,10 @@ function formatMaybe(value: string | number | undefined | null): string {
   return String(value);
 }
 
+function hasValue(value: string | number | boolean | undefined | null): boolean {
+  return value !== undefined && value !== null && value !== "";
+}
+
 function formatGroupState(value: boolean | undefined): string {
   if (value === undefined) {
     return "暂无";
@@ -38,35 +43,74 @@ function formatGroupState(value: boolean | undefined): string {
   return value ? "群聊" : "单聊";
 }
 
-function formatRecentTools(detail: SessionDetailDto | null): string {
+function resolveToolSummary(tool: SessionDetailDto["recentToolCalls"][number]): string {
+  return `${tool.toolName}：${resolveToolOperation(tool).operationLabel}`;
+}
+
+function renderRecentTools(detail: SessionDetailDto | null): ReactNode {
   const tools = detail?.recentToolCalls ?? [];
   if (tools.length === 0) {
-    return "暂无";
+    return null;
   }
-  return tools.map((tool) => `${tool.toolName}（${tool.toolCallId}）`).join("\n");
+  return (
+    <ul className="session-activity-list">
+      {tools.map((tool) => {
+        const operation = resolveToolOperation(tool);
+        const summary = resolveToolSummary(tool);
+        return (
+          <li className="session-activity-item" key={tool.toolCallId} title={`工具调用：${summary}；工具调用 ID：${tool.toolCallId}`}>
+            <span>{summary}</span>
+            <small>{formatDomainLabel(tool.enforcementAction)} · {formatTimestamp(tool.startedAtMs)}</small>
+            <details className="session-activity-detail">
+              <summary>完整工具详情</summary>
+              <p>命令：{operation.operationLabel}</p>
+              <p>工具调用 ID：{tool.toolCallId}</p>
+            </details>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
-function formatRecentApprovals(detail: SessionDetailDto | null): string {
+function renderRecentApprovals(detail: SessionDetailDto | null): ReactNode {
   const approvals = detail?.recentApprovals ?? [];
   if (approvals.length === 0) {
-    return "暂无";
+    return null;
   }
-  return approvals
-    .map((approval) => `${approval.approvalId}（${formatDomainLabel(approval.module)} / ${approval.riskLevel}）`)
-    .join("\n");
+  return (
+    <ul className="session-activity-list">
+      {approvals.map((approval) => (
+        <li className="session-activity-item" key={approval.approvalId} title={`审批 ID：${approval.approvalId}`}>
+          <span>{formatDomainLabel(approval.module)} / {approval.riskLevel}</span>
+          <small>{formatDomainLabel(approval.scopeType)} · {formatTimestamp(approval.requestedAtMs)}</small>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function formatRecentSecurityEvents(detail: SessionDetailDto | null): string {
+function renderRecentSecurityEvents(detail: SessionDetailDto | null): ReactNode {
   const events = detail?.recentEvents ?? [];
   if (events.length === 0) {
-    return "暂无";
+    return null;
   }
-  return events
-    .map((event) => `${event.title}（${formatDomainLabel(event.enforcementAction)}）`)
-    .join("\n");
+  return (
+    <ul className="session-activity-list">
+      {events.map((event) => (
+        <li className="session-activity-item" key={event.eventId} title={`安全事件 ID：${event.eventId}`}>
+          <span>{event.title}</span>
+          <small>{formatDomainLabel(event.enforcementAction)} · {formatTimestamp(event.occurredAtMs)}</small>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function renderSessionField(label: string, value: string) {
+function renderSessionField(label: string, value: ReactNode) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
   return (
     <div className="detail-panel__field" key={label}>
       <dt>{label}</dt>
@@ -170,7 +214,22 @@ export function SessionsPage() {
   }, [selectedSessionKey]);
 
   const selectedListItem = items.find((item) => item.sessionKey === selectedSessionKey) ?? null;
-  const selectedSession = detail ?? selectedListItem;
+  const selectedDetailForSession = detail?.sessionKey === selectedSessionKey ? detail : null;
+  const selectedSession = selectedDetailForSession ?? selectedListItem;
+  const recentToolCount = selectedDetailForSession?.recentToolCalls.length ?? selectedSession?.toolCallCount ?? 0;
+  const recentEventCount = selectedDetailForSession?.recentEvents.length ?? selectedSession?.eventCount ?? 0;
+  const recentApprovalCount = selectedDetailForSession?.recentApprovals.length ?? 0;
+  const missingPrimaryFields = selectedSession
+    ? [
+      ["渠道 ID", selectedSession.channelId],
+      ["会话 ID", selectedSession.conversationId],
+      ["请求人", selectedSession.requesterOuId ?? selectedSession.requesterId],
+      ["账号", selectedSession.accountId],
+      ["Token 摘要", selectedDetailForSession?.tokenSummary ? "collected" : undefined],
+    ]
+      .filter(([, value]) => !hasValue(value))
+      .map(([label]) => label)
+    : [];
   const activeCount = items.filter((item) => !item.endedAtMs).length;
   const groupCount = items.filter((item) => item.isGroup).length;
   const highRiskCount = items.filter((item) => (item.highRiskEventCount ?? 0) > 0).length;
@@ -298,22 +357,32 @@ export function SessionsPage() {
             <div>
               <h2 className="panel__title">会话详情</h2>
               <p className="panel__subtitle">
-                {selectedSession ? `会话：${selectedSession.sessionKey}` : "等待后端返回会话详情"}
+                {selectedSession ? "按活动、工具、审批和 Token 汇总当前会话。" : "等待后端返回会话详情"}
               </p>
             </div>
           </div>
+          <section className="session-summary-card" aria-label="会话摘要">
+            <h3 className="panel__title">会话摘要</h3>
+            {selectedSession ? (
+              <p title={selectedSession.sessionKey}>
+                {formatInteger(recentToolCount)} 次工具调用 · {formatInteger(recentEventCount)} 条安全事件 · {formatInteger(recentApprovalCount)} 次审批
+              </p>
+            ) : (
+              <p>等待会话数据</p>
+            )}
+          </section>
           <section className="session-detail-section" aria-label="会话元信息">
             <h3 className="panel__title">会话元信息</h3>
             <dl className="detail-panel__grid">
-              {renderSessionField("会话标识", selectedSession ? `会话：${selectedSession.sessionKey}` : "暂无")}
-              {renderSessionField("渠道", formatDomainLabel(selectedSession?.channelProfile))}
-              {renderSessionField("渠道 ID", formatMaybe(selectedSession?.channelId))}
-              {renderSessionField("会话 ID", formatMaybe(selectedSession?.conversationId))}
-              {renderSessionField("请求人", formatMaybe(selectedSession?.requesterOuId ?? selectedSession?.requesterId))}
-              {renderSessionField("账号", formatMaybe(selectedSession?.accountId))}
-              {renderSessionField("群聊状态", formatGroupState(selectedSession?.isGroup))}
-              {renderSessionField("首次出现", selectedSession ? formatTimestamp(selectedSession.firstSeenAtMs) : "暂无")}
-              {renderSessionField("最近活动", selectedSession ? formatTimestamp(selectedSession.lastSeenAtMs) : "暂无")}
+              {selectedSession ? renderSessionField("会话标识", <span title={selectedSession.sessionKey}>会话：{selectedSession.sessionKey}</span>) : null}
+              {selectedSession ? renderSessionField("渠道", formatDomainLabel(selectedSession.channelProfile)) : null}
+              {hasValue(selectedSession?.channelId) ? renderSessionField("渠道 ID", formatMaybe(selectedSession?.channelId)) : null}
+              {hasValue(selectedSession?.conversationId) ? renderSessionField("会话 ID", formatMaybe(selectedSession?.conversationId)) : null}
+              {hasValue(selectedSession?.requesterOuId ?? selectedSession?.requesterId) ? renderSessionField("请求人", formatMaybe(selectedSession?.requesterOuId ?? selectedSession?.requesterId)) : null}
+              {hasValue(selectedSession?.accountId) ? renderSessionField("账号", formatMaybe(selectedSession?.accountId)) : null}
+              {selectedSession ? renderSessionField("群聊状态", formatGroupState(selectedSession.isGroup)) : null}
+              {selectedSession ? renderSessionField("首次出现", formatTimestamp(selectedSession.firstSeenAtMs)) : null}
+              {selectedSession ? renderSessionField("最近活动", formatTimestamp(selectedSession.lastSeenAtMs)) : null}
             </dl>
           </section>
           <section className="session-detail-section" aria-label="会话活动摘要">
@@ -322,12 +391,18 @@ export function SessionsPage() {
               {renderSessionField("会话事件数", formatInteger(selectedSession?.eventCount ?? 0))}
               {renderSessionField("高风险事件", formatInteger(selectedSession?.highRiskEventCount ?? 0))}
               {renderSessionField("工具调用数", formatInteger(selectedSession?.toolCallCount ?? 0))}
-              {renderSessionField("最近工具", formatRecentTools(detail))}
-              {renderSessionField("最近审批", formatRecentApprovals(detail))}
-              {renderSessionField("最近安全事件", formatRecentSecurityEvents(detail))}
-              {renderSessionField("Token 摘要", formatTokenSummary(detail?.tokenSummary))}
+              {renderSessionField("最近工具", renderRecentTools(selectedDetailForSession))}
+              {renderSessionField("最近审批", renderRecentApprovals(selectedDetailForSession))}
+              {renderSessionField("最近安全事件", renderRecentSecurityEvents(selectedDetailForSession))}
+              {selectedDetailForSession?.tokenSummary ? renderSessionField("Token 摘要", formatTokenSummary(selectedDetailForSession.tokenSummary)) : null}
             </dl>
           </section>
+          {missingPrimaryFields.length > 0 ? (
+            <section className="session-detail-section session-detail-section--secondary" aria-label="未采集字段">
+              <h3 className="panel__title">未采集</h3>
+              <p className="small-note">{missingPrimaryFields.join("、")} 尚未由当前历史记录提供。</p>
+            </section>
+          ) : null}
         </aside>
       </section>
     </div>
