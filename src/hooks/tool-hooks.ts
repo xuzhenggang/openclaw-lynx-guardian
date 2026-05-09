@@ -10,6 +10,7 @@ import {
   collectScriptPreflightEvidence,
 } from "../script-preflight/evidence-adapter.js";
 import { resolveToolApprovalSurface } from "../approval/tool-approval-surface.js";
+import { buildShortRuntimeApprovalId, type RuntimeApprovalIdKind } from "../approval/approval-bridge.js";
 import { explainScriptDenial } from "../script-preflight/explanation.js";
 import { collectResourcePolicyEvidence } from "../protected-resources/evidence-adapter.js";
 import { buildProtectedResourceDenialExplanation } from "../protected-resources/explanation.js";
@@ -304,6 +305,13 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
     const localConsoleRunId = normalizeString((ctx as any).runId) || undefined;
     const localConsoleToolCallId = normalizeString((event as any)?.toolCallId) || undefined;
     const localConsoleParamSummary = buildParamSummary(toolName, params ?? {});
+    const buildRuntimeApprovalId = (kind: RuntimeApprovalIdKind, module: string) => buildShortRuntimeApprovalId({
+      kind,
+      runId: localConsoleRunId,
+      toolCallId: localConsoleToolCallId,
+      toolName,
+      module,
+    });
     const recordBeforeToolCall = (overrides: Record<string, unknown> = {}) => {
       const overrideMetadata = overrides.metadataJson;
       const metadataJson = scriptPreflightMetadata || (
@@ -478,7 +486,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
           return decisionResult;
         }
 
-        const approvalId = `lynx:broker:${localConsoleRunId ?? "no-run"}:${localConsoleToolCallId ?? toolName}:${primaryModule}`;
+        const approvalId = buildRuntimeApprovalId("broker", primaryModule);
         const grantScope = buildCurrentGrantScope(primaryModule);
         const matchingGrant = matchApprovalGrant({
           channelProfile: approvalRoute.channelProfile,
@@ -726,6 +734,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
 
           const approvalRiskLevel = toApprovalRiskLevel(effectiveAssessment.level);
           const primaryModule = effectiveAssessment.modules[0];
+          const ssgApprovalId = primaryModule ? buildRuntimeApprovalId("ssg", primaryModule) : "";
           const l4BlockReason = appendLogWebviewNoteForL4(blockReason, effectiveAssessment.level);
           const approvalSurface = resolveToolApprovalSurface({
             toolName,
@@ -738,7 +747,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
             ? buildCurrentGrantScope(primaryModule)
             : undefined;
           if (existingGrantScope && approvalRiskLevel && primaryModule) {
-            const currentApprovalId = `lynx:ssg:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`;
+            const currentApprovalId = ssgApprovalId;
             const matchingGrant = matchApprovalGrant({
               channelProfile: approvalRoute.channelProfile,
               channelId: approvalRoute.channelId,
@@ -794,7 +803,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
           }
 
           if (approvalRoute.compatMode === "deny-no-route") {
-            const approvalId = `lynx:ssg:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`;
+            const approvalId = ssgApprovalId;
             const approvalUnavailableReason = appendLogWebviewNoteForL3Approval(
               approvalRoute.blockReason ?? "Approval unavailable",
               approvalRiskLevel,
@@ -833,7 +842,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
             conversationId: approvalRoute.conversationId,
             accountId: approvalRoute.accountId,
             approverOuIds: localApprovalApproverOuIds,
-            approvalId: `lynx:ssg:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`,
+            approvalId: ssgApprovalId,
             toolName,
             module: primaryModule,
             riskLevel: approvalRiskLevel,
@@ -847,7 +856,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
           if (feishuLocalApproval.handled) {
             recordBeforeToolCall({
               summary: feishuLocalApproval.blockReason ?? "Feishu local approval flow handled this tool call.",
-              approvalId: `lynx:ssg:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`,
+              approvalId: ssgApprovalId,
               triggeredModules: effectiveAssessment.modules,
               primaryModule,
               riskLevel: effectiveAssessment.level,
@@ -855,7 +864,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
               policyDecision: policyResult.override.allowed ? "confirm" : "deny",
               enforcementAction: feishuLocalApproval.blockReason ? "block" : "requireApproval",
               approval: buildLocalConsoleApproval({
-                approvalId: `lynx:ssg:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`,
+                approvalId: ssgApprovalId,
                 module: primaryModule,
                 riskLevel: approvalRiskLevel,
                 transport: "local-chat",
@@ -880,7 +889,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
             protectedTargetSummary: grantScope.protectedTargetSummary,
             scopeType: grantScope.scopeType,
           });
-          const approvalId = `lynx:ssg:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`;
+          const approvalId = ssgApprovalId;
           const matchingGrant = matchApprovalGrant({
             channelProfile: approvalRoute.channelProfile,
             channelId: approvalRoute.channelId,
@@ -1330,6 +1339,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
         const policyResult = resolveRiskPolicy(apiAssessment, riskPolicyConfig);
         const approvalRiskLevel = toApprovalRiskLevel(apiAssessment.level);
         const primaryModule = blacklistModules[0];
+        const blacklistApprovalId = primaryModule ? buildRuntimeApprovalId("blacklist", primaryModule) : "";
         const approvalSurface = resolveToolApprovalSurface({
           toolName,
           riskLevel: apiAssessment.level as any,
@@ -1341,7 +1351,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
           ? buildCurrentGrantScope(primaryModule)
           : undefined;
         if (existingGrantScope && approvalRiskLevel && primaryModule) {
-          const currentApprovalId = `lynx:blacklist:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`;
+          const currentApprovalId = blacklistApprovalId;
           const matchingGrant = matchApprovalGrant({
             channelProfile: approvalRoute.channelProfile,
             channelId: approvalRoute.channelId,
@@ -1382,7 +1392,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
         }
         if (policyResult.override.allowed && approvalRiskLevel && primaryModule) {
           if (approvalRoute.compatMode === "deny-no-route") {
-            const approvalId = `lynx:blacklist:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`;
+            const approvalId = blacklistApprovalId;
             recordBeforeToolCall({
               summary: approvalRoute.blockReason ?? "Approval unavailable",
               approvalId,
@@ -1409,7 +1419,7 @@ export function registerToolHooks(api: OpenClawPluginApi, runtime: LynxHookRunti
             };
           }
 
-          const approvalId = `lynx:blacklist:${ctx.runId ?? "no-run"}:${event.toolCallId ?? toolName}:${primaryModule}`;
+          const approvalId = blacklistApprovalId;
           const feishuLocalApproval = await handleFeishuLocalToolApproval({
             ctx: approvalRoute.approvalCtx,
             channelProfile: approvalRoute.channelProfile,

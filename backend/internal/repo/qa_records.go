@@ -561,9 +561,34 @@ func terminalDetailFromToolCall(item map[string]any) (map[string]any, bool) {
 		out[key] = value
 	}
 	for key, value := range metadata {
+		if _, protected := terminalDetailProtectedToolCallKeys[key]; protected {
+			if _, exists := out[key]; exists {
+				continue
+			}
+		}
 		out[key] = value
 	}
 	return out, true
+}
+
+var terminalDetailProtectedToolCallKeys = map[string]struct{}{
+	"approvalId":        {},
+	"enforcementAction": {},
+	"errorText":         {},
+	"metadataJson":      {},
+	"paramHash":         {},
+	"paramSummary":      {},
+	"policyDecision":    {},
+	"qaRecordId":        {},
+	"resultExcerpt":     {},
+	"resultStatus":      {},
+	"riskLevel":         {},
+	"riskScore":         {},
+	"runId":             {},
+	"sessionKey":        {},
+	"toolCallId":        {},
+	"toolName":          {},
+	"triggeredModules":  {},
 }
 
 func mapChainNodes(nodes []qaChainNode) []map[string]any {

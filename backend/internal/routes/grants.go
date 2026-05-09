@@ -130,4 +130,17 @@ func RegisterGrants(
 		}
 		c.JSON(http.StatusOK, grants)
 	})
+
+	public.GET("/grants/:grantId", func(c *gin.Context) {
+		grant, err := repository.GetDetail(c.Request.Context(), c.Param("grantId"))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
+			return
+		}
+		if grant == nil {
+			c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "Grant not found."})
+			return
+		}
+		c.JSON(http.StatusOK, grant)
+	})
 }

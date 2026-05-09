@@ -1753,7 +1753,16 @@ describe('Plugin Setup', () => {
     expect(fourthDifferentModule).toBeUndefined();
 
     await new Promise((resolve) => setTimeout(resolve, 200));
-    const sourceApprovalId = 'lynx:ssg:run-webchat-tool-approval:tool-local-1:M2:protected_file_access';
+    const sourceApprovalId = String(
+      ingestedItems.find(
+        (item) =>
+          item.kind === 'approvalUpsert'
+          && item.data?.runId === 'run-webchat-tool-approval'
+          && item.data?.toolName === 'read',
+      )?.data?.approvalId ?? '',
+    );
+    expect(sourceApprovalId).toMatch(/^apv-s-[0-9a-f]{12}$/);
+    expect(sourceApprovalId.length).toBeLessThanOrEqual(20);
     const grantHitAuditItems = ingestedItems.filter(
       (item) =>
         item.kind === 'auditEvent'

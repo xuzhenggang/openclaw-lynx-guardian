@@ -413,6 +413,17 @@ type ListEventsParams struct {
 	IncludeRoutineHeartbeat *bool              `form:"includeRoutineHeartbeat,omitempty" json:"includeRoutineHeartbeat,omitempty"`
 }
 
+// ListGrantsParams defines parameters for ListGrants.
+type ListGrantsParams struct {
+	Q           *Q      `form:"q,omitempty" json:"q,omitempty"`
+	ChainId     *string `form:"chainId,omitempty" json:"chainId,omitempty"`
+	RequesterId *string `form:"requesterId,omitempty" json:"requesterId,omitempty"`
+	Revoked     *bool   `form:"revoked,omitempty" json:"revoked,omitempty"`
+	PageNum     *int    `form:"pageNum,omitempty" json:"pageNum,omitempty"`
+	PageSize    *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Limit       *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListLynxChecksParams defines parameters for ListLynxChecks.
 type ListLynxChecksParams struct {
 	Q               *Q          `form:"q,omitempty" json:"q,omitempty"`
@@ -1360,6 +1371,12 @@ type ServerInterface interface {
 	// Read one audit event.
 	// (GET /lynx/events/{eventId})
 	GetEvent(c *gin.Context, eventId string)
+	// List approval grant records.
+	// (GET /lynx/grants)
+	ListGrants(c *gin.Context, params ListGrantsParams)
+	// Read one approval grant with execution-chain and related tool-call data.
+	// (GET /lynx/grants/{grantId})
+	GetGrant(c *gin.Context, grantId string)
 	// Read server health.
 	// (GET /lynx/health)
 	GetHealth(c *gin.Context)
@@ -1822,6 +1839,104 @@ func (siw *ServerInterfaceWrapper) GetEvent(c *gin.Context) {
 	}
 
 	siw.Handler.GetEvent(c, eventId)
+}
+
+// ListGrants operation middleware
+func (siw *ServerInterfaceWrapper) ListGrants(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGrantsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "chainId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "chainId", c.Request.URL.Query(), &params.ChainId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter chainId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "requesterId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "requesterId", c.Request.URL.Query(), &params.RequesterId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter requesterId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "revoked" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "revoked", c.Request.URL.Query(), &params.Revoked, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter revoked: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageNum" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageNum", c.Request.URL.Query(), &params.PageNum, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageNum: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListGrants(c, params)
+}
+
+// GetGrant operation middleware
+func (siw *ServerInterfaceWrapper) GetGrant(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "grantId" -------------
+	var grantId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "grantId", c.Param("grantId"), &grantId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter grantId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetGrant(c, grantId)
 }
 
 // GetHealth operation middleware
@@ -2631,6 +2746,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/lynx/dashboard/overview", wrapper.GetDashboardOverview)
 	router.GET(options.BaseURL+"/lynx/events", wrapper.ListEvents)
 	router.GET(options.BaseURL+"/lynx/events/:eventId", wrapper.GetEvent)
+	router.GET(options.BaseURL+"/lynx/grants", wrapper.ListGrants)
+	router.GET(options.BaseURL+"/lynx/grants/:grantId", wrapper.GetGrant)
 	router.GET(options.BaseURL+"/lynx/health", wrapper.GetHealth)
 	router.POST(options.BaseURL+"/lynx/internal/v1/ingest/approvals", wrapper.IngestApprovals)
 	router.POST(options.BaseURL+"/lynx/internal/v1/ingest/audit-events", wrapper.IngestAuditEvents)

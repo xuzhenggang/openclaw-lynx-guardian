@@ -258,6 +258,60 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
+  /lynx/grants:
+    get:
+      tags: [query]
+      operationId: listGrants
+      summary: List approval grant records.
+      parameters:
+        - $ref: "#/components/parameters/Q"
+        - name: chainId
+          in: query
+          schema:
+            type: string
+        - name: requesterId
+          in: query
+          schema:
+            type: string
+        - name: revoked
+          in: query
+          schema:
+            type: boolean
+        - name: pageNum
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          $ref: "#/components/responses/PageResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /lynx/grants/{grantId}:
+    get:
+      tags: [query]
+      operationId: getGrant
+      summary: Read one approval grant with execution-chain and related tool-call data.
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ObjectResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
   /lynx/lynx-checks:
     get:
       tags: [query]

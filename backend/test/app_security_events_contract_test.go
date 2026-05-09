@@ -46,6 +46,87 @@ func TestSecurityEventsListIncludesInputToolOutput(t *testing.T) {
 	expectString(t, itemsByKind["output"], "enforcementAction", "allow")
 }
 
+func TestSecurityEventDetailIncludesJudgementEvidence(t *testing.T) {
+	handler, closer := buildParityHandler(t)
+	t.Cleanup(func() {
+		if err := closer(); err != nil {
+			t.Fatalf("closer returned error: %v", err)
+		}
+	})
+
+	items := []any{
+		securityQARecordFixture("qa-judgement-evidence"),
+		securityToolCallFixture("qa-judgement-evidence", "tool-judgement-evidence", "exec", "L4", "block"),
+		securityAuditEventFixture("event-judgement-evidence", "qa-judgement-evidence", "tool-judgement-evidence", "tool", "before_tool_call", "tool_call_evaluated", "L4", "block"),
+	}
+	toolData := items[1].(map[string]any)["data"].(map[string]any)
+	toolData["triggeredModules"] = []string{"M2:protected_file_access"}
+	auditData := items[2].(map[string]any)["data"].(map[string]any)
+	auditData["primaryModule"] = "M2:protected_file_access"
+	auditData["modules"] = []string{"M2:protected_file_access"}
+	seed := doJSON(t, handler, http.MethodPost, "/lynx/internal/v1/ingest/batch", fixtureBatchWithItems("security-judgement-evidence", items), true)
+	decodeObjectStatus(t, seed, http.StatusOK)
+
+	detail := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/security-events/security:tool:tool-judgement-evidence", nil, false), http.StatusOK)
+	detailJSON, ok := detail["detailJson"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected security event detailJson object, got %#v", detail["detailJson"])
+	}
+	judgementEvidence, ok := detailJSON["judgementEvidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected judgementEvidence object in detailJson, got %#v", detailJSON)
+	}
+	expectString(t, judgementEvidence, "module", "M2:protected_file_access")
+	expectString(t, judgementEvidence, "riskLevel", "L4")
+	expectString(t, judgementEvidence, "enforcementAction", "block")
+	if evidence, _ := judgementEvidence["evidence"].([]any); len(evidence) == 0 {
+		t.Fatalf("expected concrete evidence entries in %#v", judgementEvidence)
+	}
+}
+
+func TestSecurityEventDetailPreservesExistingJudgementEvidence(t *testing.T) {
+	handler, closer := buildParityHandler(t)
+	t.Cleanup(func() {
+		if err := closer(); err != nil {
+			t.Fatalf("closer returned error: %v", err)
+		}
+	})
+
+	items := []any{
+		securityQARecordFixture("qa-existing-judgement-evidence"),
+		securityToolCallFixture("qa-existing-judgement-evidence", "tool-existing-judgement-evidence", "exec", "L4", "block"),
+		securityAuditEventFixture("event-existing-judgement-evidence", "qa-existing-judgement-evidence", "tool-existing-judgement-evidence", "tool", "before_tool_call", "tool_call_evaluated", "L4", "block"),
+	}
+	toolData := items[1].(map[string]any)["data"].(map[string]any)
+	metadata := toolData["metadataJson"].(map[string]any)
+	metadata["judgementEvidence"] = map[string]any{
+		"module":    "runtime.precomputed.rule",
+		"riskLevel": "L3",
+		"evidence":  []any{"runtime supplied concrete evidence"},
+	}
+	auditData := items[2].(map[string]any)["data"].(map[string]any)
+	auditData["primaryModule"] = "M2:protected_file_access"
+	auditData["modules"] = []string{"M2:protected_file_access"}
+	seed := doJSON(t, handler, http.MethodPost, "/lynx/internal/v1/ingest/batch", fixtureBatchWithItems("security-existing-judgement-evidence", items), true)
+	decodeObjectStatus(t, seed, http.StatusOK)
+
+	detail := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/security-events/security:tool:tool-existing-judgement-evidence", nil, false), http.StatusOK)
+	detailJSON, ok := detail["detailJson"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected security event detailJson object, got %#v", detail["detailJson"])
+	}
+	judgementEvidence, ok := detailJSON["judgementEvidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected judgementEvidence object in detailJson, got %#v", detailJSON)
+	}
+	expectString(t, judgementEvidence, "module", "runtime.precomputed.rule")
+	expectString(t, judgementEvidence, "riskLevel", "L3")
+	evidence, _ := judgementEvidence["evidence"].([]any)
+	if len(evidence) == 0 || evidence[0] != "runtime supplied concrete evidence" {
+		t.Fatalf("expected runtime evidence to be preserved, got %#v", judgementEvidence)
+	}
+}
+
 func TestSecurityEventsEveryEventHasRiskLevel(t *testing.T) {
 	handler, closer := buildParityHandler(t)
 	t.Cleanup(func() {

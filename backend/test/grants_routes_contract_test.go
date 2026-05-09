@@ -421,6 +421,83 @@ func TestGrantListFiltersAndPaginates(t *testing.T) {
 	expectString(t, filteredItems[0], "approvalId", "approval-beta")
 }
 
+func TestGrantDetailIncludesExecutionChainAndToolCardsData(t *testing.T) {
+	router, database := setupGrantRouterWithApprovals(t)
+	grant := resolveApproval(t, router, grantResolveBody{
+		ApprovalID:     "approval-detail",
+		ChainID:        "chain-detail",
+		SessionKey:     "session-detail",
+		ChannelProfile: "feishu",
+		ChannelID:      "channel-detail",
+		ConversationID: "conversation-detail",
+		RequesterID:    "requester-detail",
+		RequesterOuID:  "ou-detail",
+		ApproverID:     "approver-detail",
+		ApproverOuID:   "owner-detail",
+		RiskFamily:     "exec",
+		RiskLevel:      "L3",
+		ToolName:       "exec",
+		TargetKind:     "command",
+		TargetHash:     "target-detail",
+	})
+	_, err := database.Exec(`
+		INSERT INTO tool_calls (
+			tool_call_id, qa_record_id, session_key, run_id, approval_id, tool_name,
+			param_summary, param_hash, triggered_modules_json, risk_level, risk_score,
+			policy_decision, enforcement_action, started_at, finished_at, duration_ms,
+			result_status, result_excerpt, error_text, metadata_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"tool-grant-detail",
+		"qa-grant-detail",
+		"session-detail",
+		"run-grant-detail",
+		"approval-detail",
+		"exec",
+		"command=Get-Content package.json",
+		"hash-grant-detail",
+		`["M2:protected_file_access"]`,
+		"L3",
+		int64(8),
+		"confirm",
+		"require_approval",
+		int64(1000),
+		int64(1200),
+		int64(200),
+		"completed",
+		"name=@shouxuai/openclaw-lynx-guardian",
+		"",
+		`{"command":"Get-Content package.json","cwd":"C:\\work\\repo","toolCallId":"metadata-shadow-tool","approvalId":"metadata-shadow-approval"}`,
+	)
+	if err != nil {
+		t.Fatalf("insert related tool call: %v", err)
+	}
+
+	detail := decodeObjectStatus(t, doJSON(t, router, http.MethodGet, "/lynx/grants/"+grant.GrantID, nil, false), http.StatusOK)
+	expectString(t, detail, "grantId", grant.GrantID)
+	executionChain, ok := detail["executionChain"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected executionChain object, got %#v", detail["executionChain"])
+	}
+	expectString(t, executionChain, "chainId", "chain-detail")
+	expectString(t, executionChain, "approvalId", "approval-detail")
+	if explanation, _ := executionChain["explanation"].(string); !strings.Contains(explanation, "chain-detail") || !strings.Contains(explanation, "approval-detail") {
+		t.Fatalf("expected execution chain explanation to link chain and approval, got %#v", executionChain)
+	}
+
+	rawTools, ok := detail["relatedToolCalls"].([]any)
+	if !ok || len(rawTools) != 1 {
+		t.Fatalf("expected one related tool call card, got %#v", detail["relatedToolCalls"])
+	}
+	toolCard, ok := rawTools[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected related tool call object, got %T", rawTools[0])
+	}
+	expectString(t, toolCard, "toolCallId", "tool-grant-detail")
+	expectString(t, toolCard, "approvalId", "approval-detail")
+	expectString(t, toolCard, "command", "Get-Content package.json")
+	expectString(t, toolCard, "resultExcerpt", "name=@shouxuai/openclaw-lynx-guardian")
+}
+
 func TestChainSummaryAccumulatesEvents(t *testing.T) {
 	router := setupGrantRouter(t)
 

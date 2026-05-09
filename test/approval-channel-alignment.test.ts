@@ -144,10 +144,11 @@ describe("approval channel alignment", () => {
     clearRunApprovalContexts();
   });
 
-  function configureOwnerApproval(): void {
+  function configureOwnerApproval(localConsoleOverrides: Record<string, unknown> = {}): void {
     mockApi.config = {
       localConsole: {
         autoStart: false,
+        ...localConsoleOverrides,
       },
       selfSafetyGuard: {
         ownerVerification: {
@@ -161,6 +162,16 @@ describe("approval channel alignment", () => {
     };
     handlers = {};
     setup(mockApi);
+  }
+
+  async function waitForCondition(predicate: () => boolean, timeoutMs = 200): Promise<void> {
+    const startedAt = Date.now();
+    while (!predicate()) {
+      if (Date.now() - startedAt > timeoutMs) {
+        throw new Error("timed out waiting for condition");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
   }
 
   it("handles blocked webchat input in before_dispatch before model dispatch", async () => {
@@ -488,6 +499,118 @@ describe("approval channel alignment", () => {
     expect((result as any)?.block).not.toBe(true);
     expect(JSON.stringify(result ?? {})).not.toContain("/approve");
     expect((result as any)?.requireApproval?.description).toContain("执行命令调用");
+    guardSpy.mockRestore();
+  });
+
+  it("uses one short approval id across local-console approval, grant, tool-call, and QA references", async () => {
+    vi.stubEnv("OPENCLAW_VERSION", "2026.3.28");
+    const capturedIngestItems: any[] = [];
+    const approvalResolveRequests: Array<{ url: string; body: any }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input, init) => {
+      const url = String(input);
+      const bodyText = typeof (init as any)?.body === "string" ? (init as any).body : "";
+      if (url.includes("/lynx/internal/v1/ingest/")) {
+        const body = bodyText ? JSON.parse(bodyText) : {};
+        capturedIngestItems.push(...(Array.isArray(body.items) ? body.items : []));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            acceptedCount: Array.isArray(body.items) ? body.items.length : 0,
+            rejectedCount: 0,
+            items: [],
+          }),
+          text: async () => JSON.stringify({ ok: true }),
+        } as Response;
+      }
+      if (url.includes("/lynx/internal/v1/approvals/")) {
+        approvalResolveRequests.push({
+          url,
+          body: bodyText ? JSON.parse(bodyText) : undefined,
+        });
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          decisionId: "allow-short-approval-id-test",
+          block: false,
+          action: "allow",
+          riskLevel: "L0",
+          score: 0,
+          matchedModules: [],
+          requiresApproval: false,
+        }),
+      } as Response;
+    }));
+    configureOwnerApproval({
+      flushIntervalMs: 1,
+      requestTimeoutMs: 100,
+    });
+    const guardSpy = vi.spyOn(safetyGuard, "guardToolCall").mockReturnValue({
+      block: true,
+      blockReason: "[Lynx Guardian] L3 command execution risk",
+      riskAssessment: {
+        level: "L3",
+        score: 8,
+        modules: ["M2:protected_file_access"],
+        description: "exec reads protected system file",
+        action: "block",
+      },
+    } as any);
+    const longRunId = "run-20260509-this-is-a-very-long-runtime-context-for-approval-storage";
+    const longSessionKey = "session-20260509-this-is-a-very-long-session-key";
+
+    await handlers.before_agent_start(
+      { prompt: "Please inspect the current package metadata." },
+      {
+        sessionKey: longSessionKey,
+        channelId: "webchat",
+        runId: longRunId,
+      },
+    );
+
+    const result = await handlers.before_tool_call(
+      {
+        toolName: "exec",
+        params: { command: "Get-Content C:\\very\\long\\protected\\path\\secrets.txt" },
+        runId: longRunId,
+        toolCallId: "tool-20260509-this-is-a-very-long-tool-call-identifier",
+      },
+      {
+        sessionKey: longSessionKey,
+        channelId: "webchat",
+        runId: longRunId,
+      },
+    );
+
+    await waitForCondition(() => capturedIngestItems.some((item) => item.kind === "approvalUpsert"));
+    const approvalItem = capturedIngestItems.find((item) => item.kind === "approvalUpsert");
+    const toolCallItem = capturedIngestItems.find((item) => item.kind === "toolCallUpsert");
+    const qaItem = capturedIngestItems.find((item) => item.kind === "qaRecordUpsert");
+    const approvalId = approvalItem?.data?.approvalId;
+    const auditItem = capturedIngestItems.find(
+      (item) => item.kind === "auditEvent" && item.data?.approvalId === approvalId,
+    );
+
+    expect(typeof approvalId).toBe("string");
+    expect(approvalId.length).toBeLessThanOrEqual(20);
+    expect(toolCallItem?.data?.approvalId).toBe(approvalId);
+    expect(auditItem?.data?.approvalId).toBe(approvalId);
+    expect(approvalItem?.data?.pendingId).toBe(approvalId);
+    expect(toolCallItem?.data?.qaRecordId).toBe(qaItem?.data?.qaRecordId);
+    expect(approvalItem?.data?.qaRecordId).toBe(qaItem?.data?.qaRecordId);
+
+    expect(typeof (result as any)?.requireApproval?.onResolution).toBe("function");
+    await (result as any).requireApproval.onResolution("allow-once");
+    await waitForCondition(() => approvalResolveRequests.length > 0);
+    expect(decodeURIComponent(approvalResolveRequests[0]!.url)).toContain(`/lynx/internal/v1/approvals/${approvalId}/resolve`);
+    expect(approvalResolveRequests[0]!.body?.approvalId).toBe(approvalId);
     guardSpy.mockRestore();
   });
 

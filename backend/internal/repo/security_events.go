@@ -523,6 +523,89 @@ func finalizeSecurityEvent(event *securityEventRow) {
 	if event.EnforcementAction == "" {
 		event.EnforcementAction = "allow"
 	}
+	if event.DetailJSON == nil {
+		event.DetailJSON = map[string]any{}
+	}
+	event.DetailJSON["judgementEvidence"] = mergeSecurityJudgementEvidence(
+		event.DetailJSON["judgementEvidence"],
+		buildSecurityJudgementEvidence(*event),
+	)
+}
+
+func mergeSecurityJudgementEvidence(existing any, computed map[string]any) map[string]any {
+	existingMap, ok := existing.(map[string]any)
+	if !ok || len(existingMap) == 0 {
+		return computed
+	}
+	merged := make(map[string]any, len(existingMap)+len(computed))
+	for key, value := range existingMap {
+		merged[key] = value
+	}
+	for key, value := range computed {
+		current, exists := merged[key]
+		if key == "evidence" {
+			merged[key] = mergeJudgementEvidenceValues(current, value)
+			continue
+		}
+		if !exists || emptyJudgementEvidenceValue(current) {
+			merged[key] = value
+		}
+	}
+	return merged
+}
+
+func mergeJudgementEvidenceValues(existing any, computed any) any {
+	existingItems := judgementEvidenceSlice(existing)
+	computedItems := judgementEvidenceSlice(computed)
+	if len(existingItems) == 0 {
+		return computed
+	}
+	if len(computedItems) == 0 {
+		return existing
+	}
+	seen := make(map[string]struct{}, len(existingItems)+len(computedItems))
+	merged := make([]any, 0, len(existingItems)+len(computedItems))
+	for _, item := range append(existingItems, computedItems...) {
+		key := fmt.Sprintf("%#v", item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, item)
+	}
+	return merged
+}
+
+func judgementEvidenceSlice(value any) []any {
+	switch typed := value.(type) {
+	case []any:
+		return typed
+	case []map[string]any:
+		out := make([]any, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, item)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func emptyJudgementEvidenceValue(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(typed) == ""
+	case []any:
+		return len(typed) == 0
+	case []map[string]any:
+		return len(typed) == 0
+	case map[string]any:
+		return len(typed) == 0
+	default:
+		return false
+	}
 }
 
 func mapSecurityEventListRow(row securityEventRow) map[string]any {
@@ -556,6 +639,84 @@ func mapSecurityEventListRow(row securityEventRow) map[string]any {
 		out["detailJson"] = row.DetailJSON
 	}
 	return out
+}
+
+func buildSecurityJudgementEvidence(event securityEventRow) map[string]any {
+	evidence := make([]map[string]any, 0, 4)
+	if event.ContentExcerpt != "" {
+		evidence = append(evidence, map[string]any{
+			"kind":  "contentExcerpt",
+			"value": event.ContentExcerpt,
+		})
+	}
+	if event.Summary != "" {
+		evidence = append(evidence, map[string]any{
+			"kind":  "summary",
+			"value": event.Summary,
+		})
+	}
+	if command := stringFromSecurityDetail(event.DetailJSON, "command"); command != "" {
+		evidence = append(evidence, map[string]any{
+			"kind":  "command",
+			"value": command,
+		})
+	}
+	if len(event.RawAuditEventIDs) > 0 {
+		evidence = append(evidence, map[string]any{
+			"kind":  "rawAuditEventIds",
+			"value": strings.Join(event.RawAuditEventIDs, ","),
+		})
+	}
+	return map[string]any{
+		"module":            securityEventModule(event),
+		"riskLevel":         normalizeRiskLevel(event.RiskLevel),
+		"policyDecision":    event.PolicyDecision,
+		"enforcementAction": firstNonEmpty(event.EnforcementAction, "allow"),
+		"evidence":          evidence,
+	}
+}
+
+func securityEventModule(event securityEventRow) string {
+	for _, row := range event.RawAuditEvents {
+		if row.PrimaryModule.Valid && row.PrimaryModule.String != "" {
+			return row.PrimaryModule.String
+		}
+	}
+	if module := stringFromSecurityDetail(event.DetailJSON, "primaryModule"); module != "" {
+		return module
+	}
+	if modules := stringsFromAnyMap(event.DetailJSON, "triggeredModules"); len(modules) > 0 {
+		return modules[0]
+	}
+	return firstNonEmpty(event.EventKind, event.ProcessKind)
+}
+
+func stringFromSecurityDetail(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+	value, _ := values[key].(string)
+	return value
+}
+
+func stringsFromAnyMap(values map[string]any, key string) []string {
+	if values == nil {
+		return nil
+	}
+	switch raw := values[key].(type) {
+	case []string:
+		return raw
+	case []any:
+		out := make([]string, 0, len(raw))
+		for _, item := range raw {
+			if value, ok := item.(string); ok && value != "" {
+				out = append(out, value)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func securityEventMatchesQuery(event securityEventRow, query SecurityEventListQuery) bool {

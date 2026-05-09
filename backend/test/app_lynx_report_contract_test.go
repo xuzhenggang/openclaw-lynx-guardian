@@ -43,6 +43,9 @@ func TestLynxCheckDetailReturnsFullReportMarkdown(t *testing.T) {
 	if got, _ := detail["reportMarkdown"].(string); got != reportMarkdown {
 		t.Fatalf("expected full reportMarkdown length %d, got length %d", len(reportMarkdown), len(got))
 	}
+	if got, _ := detail["reportMarkdown"].(string); got == "/tmp/full-report.md" || !strings.Contains(got, "## Full Section") {
+		t.Fatalf("reportMarkdown should contain report body, not path-only data: %q", got)
+	}
 }
 
 func TestLynxCheckListFiltersByKeyword(t *testing.T) {

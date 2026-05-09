@@ -209,6 +209,7 @@ type ChainSummary struct {
 	PendingApproval  string               `json:"pendingApproval"`
 	CoveredPrompts   []ChainCoveredPrompt `json:"coveredPrompts"`
 	PromptCount      int                  `json:"promptCount"`
+	GroupingRelation string               `json:"groupingRelation,omitempty"`
 }
 
 type ChainCoveredPrompt struct {
@@ -260,6 +261,28 @@ type Grant struct {
 	ExpiresAt      string         `json:"expiresAt"`
 	RevokedAt      string         `json:"revokedAt,omitempty"`
 	RevokedReason  string         `json:"revokedReason,omitempty"`
+}
+
+type GrantExecutionChain struct {
+	GrantID        string `json:"grantId"`
+	ApprovalID     string `json:"approvalId"`
+	ChainID        string `json:"chainId"`
+	SessionKey     string `json:"sessionKey"`
+	ChannelProfile string `json:"channelProfile,omitempty"`
+	ChannelID      string `json:"channelId,omitempty"`
+	ConversationID string `json:"conversationId,omitempty"`
+	RequesterID    string `json:"requesterId,omitempty"`
+	RequesterOuID  string `json:"requesterOuId,omitempty"`
+	ToolName       string `json:"toolName,omitempty"`
+	TargetKind     string `json:"targetKind,omitempty"`
+	TargetHash     string `json:"targetHash,omitempty"`
+	Explanation    string `json:"explanation"`
+}
+
+type GrantDetail struct {
+	Grant
+	ExecutionChain   GrantExecutionChain `json:"executionChain"`
+	RelatedToolCalls []map[string]any    `json:"relatedToolCalls"`
 }
 
 type ApprovalResolveRequest struct {

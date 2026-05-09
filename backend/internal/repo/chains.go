@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/openclaw/lynx-guardian/backend/internal/api"
 	"github.com/openclaw/lynx-guardian/backend/internal/service"
@@ -121,6 +122,7 @@ func (r *ChainRepository) Get(ctx context.Context, chainID string) (api.ChainSum
 	if err := r.loadPromptCoverage(ctx, &summary); err != nil {
 		return api.ChainSummary{}, err
 	}
+	applyChainGroupingRelation(&summary)
 	return summary, nil
 }
 
@@ -188,6 +190,7 @@ func (r *ChainRepository) List(ctx context.Context, query ChainListQuery) (servi
 		if err := r.loadPromptCoverage(ctx, &out[index]); err != nil {
 			return service.PageResponse[api.ChainSummary]{}, err
 		}
+		applyChainGroupingRelation(&out[index])
 	}
 	return service.BuildPageResponse(out, total, page), nil
 }
@@ -224,6 +227,30 @@ func normalizeChainSummary(summary *api.ChainSummary) {
 		summary.CoveredPrompts = []api.ChainCoveredPrompt{}
 	}
 	summary.PromptCount = len(summary.CoveredPrompts)
+}
+
+func applyChainGroupingRelation(summary *api.ChainSummary) {
+	parts := make([]string, 0, 5)
+	if summary.SessionKey != "" {
+		parts = append(parts, fmt.Sprintf("same session %s", summary.SessionKey))
+	}
+	if summary.ConversationID != "" {
+		parts = append(parts, fmt.Sprintf("conversation %s", summary.ConversationID))
+	}
+	if summary.PromptCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d prompt records", summary.PromptCount))
+	}
+	if summary.PendingApproval != "" {
+		parts = append(parts, fmt.Sprintf("pending approval %s", summary.PendingApproval))
+	}
+	if summary.ActiveGrantID != "" {
+		parts = append(parts, fmt.Sprintf("active grant %s", summary.ActiveGrantID))
+	}
+	if len(parts) == 0 {
+		summary.GroupingRelation = ""
+		return
+	}
+	summary.GroupingRelation = "Grouped by " + strings.Join(parts, ", ") + "."
 }
 
 func (r *ChainRepository) loadPromptCoverage(ctx context.Context, summary *api.ChainSummary) error {

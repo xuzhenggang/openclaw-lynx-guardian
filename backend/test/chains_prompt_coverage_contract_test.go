@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -57,6 +58,46 @@ func TestChainPromptCoverage(t *testing.T) {
 	}
 	expectCoveredPrompt(t, detail.CoveredPrompts[0], "qa-1", "run-1", "first prompt", "L2", int64(1000), "completed")
 	expectCoveredPrompt(t, detail.CoveredPrompts[1], "qa-2", "run-2", "second prompt", "L3", int64(2000), "completed")
+}
+
+func TestChainDetailExplainsGroupingRelation(t *testing.T) {
+	router, database := setupChainPromptCoverageRouter(t)
+
+	postJSON(t, router, http.MethodPost, "/lynx/internal/v1/chains/update", api.ChainUpdateRequest{
+		ChainID:        "chain-relation",
+		SessionKey:     "session-relation",
+		ChannelProfile: "feishu",
+		ConversationID: "conversation-relation",
+		RequesterID:    "requester-relation",
+		EventType:      "before_tool_call",
+		Hook:           "before_tool_call",
+		RiskLevel:      "L3",
+		Action:         "require_approval",
+		ToolName:       "exec",
+		Metadata: map[string]any{
+			"pendingApproval": "apv-relation",
+		},
+	})
+	insertChainPromptQARecord(t, database, "qa-relation-1", "session-relation", "run-relation-1", "first related prompt", "L2", "completed", 1000)
+	insertChainPromptQARecord(t, database, "qa-relation-2", "session-relation", "run-relation-2", "second related prompt", "L3", "completed", 2000)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/lynx/chains/chain-relation", nil)
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status %d for chain detail: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var detail map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("decode chain detail: %v", err)
+	}
+	groupingRelation, _ := detail["groupingRelation"].(string)
+	if !strings.Contains(groupingRelation, "session-relation") ||
+		!strings.Contains(groupingRelation, "2 prompt") ||
+		!strings.Contains(groupingRelation, "apv-relation") {
+		t.Fatalf("grouping relation does not explain session, prompt count, and approval link: %#v", detail)
+	}
 }
 
 func setupChainPromptCoverageRouter(t *testing.T) (*gin.Engine, *sql.DB) {

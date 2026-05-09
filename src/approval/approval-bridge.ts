@@ -109,6 +109,31 @@ export function buildApprovalRequestFingerprint(input: ApprovalFingerprintInput)
     .digest("hex");
 }
 
+export type RuntimeApprovalIdKind = "broker" | "ssg" | "blacklist";
+
+const RUNTIME_APPROVAL_ID_KIND_CODES: Record<RuntimeApprovalIdKind, string> = {
+  broker: "b",
+  ssg: "s",
+  blacklist: "x",
+};
+
+export function buildShortRuntimeApprovalId(input: {
+  kind: RuntimeApprovalIdKind;
+  runId?: string;
+  toolCallId?: string;
+  toolName?: string;
+  module?: string;
+}): string {
+  const raw = [
+    input.kind,
+    input.runId?.trim() || "no-run",
+    input.toolCallId?.trim() || input.toolName?.trim() || "unknown-tool",
+    input.module?.trim() || "unknown-module",
+  ].join("|");
+  const digest = createHash("sha1").update(raw).digest("hex").slice(0, 12);
+  return `apv-${RUNTIME_APPROVAL_ID_KIND_CODES[input.kind]}-${digest}`;
+}
+
 export type ApprovalRiskLevel = "L2" | "L3";
 export type ApprovalGrantScopeType = "singleTool" | "workflow" | "execWorkflow";
 

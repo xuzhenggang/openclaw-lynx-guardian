@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/openclaw/lynx-guardian/backend/internal/api"
@@ -74,6 +75,36 @@ func (r *GrantRepository) FindLatestByChain(ctx context.Context, chainID string)
 		LIMIT 1`,
 		chainID,
 	)
+}
+
+func (r *GrantRepository) GetByID(ctx context.Context, grantID string) (*api.Grant, error) {
+	return r.findOne(ctx, `
+		SELECT grant_id, approval_id, chain_id, session_key, channel_profile,
+		       channel_id, conversation_id, requester_id, requester_ou_id,
+		       approver_id, approver_ou_id, risk_family, tool_name, target_kind,
+		       target_hash, resource_scope_json, created_at, expires_at,
+		       COALESCE(revoked_at, ''), revoked_reason
+		FROM approval_grants
+		WHERE grant_id = ?
+		LIMIT 1`,
+		grantID,
+	)
+}
+
+func (r *GrantRepository) GetDetail(ctx context.Context, grantID string) (*api.GrantDetail, error) {
+	grant, err := r.GetByID(ctx, grantID)
+	if err != nil || grant == nil {
+		return nil, err
+	}
+	toolCalls, err := r.relatedToolCalls(ctx, *grant)
+	if err != nil {
+		return nil, err
+	}
+	return &api.GrantDetail{
+		Grant:            *grant,
+		ExecutionChain:   grantExecutionChain(*grant),
+		RelatedToolCalls: toolCalls,
+	}, nil
 }
 
 func (r *GrantRepository) FindActiveByChain(ctx context.Context, chainID string, now string) (*api.Grant, error) {
@@ -194,6 +225,74 @@ func grantListFilter(query GrantListQuery) *Filter {
 		}
 	}
 	return filter
+}
+
+func (r *GrantRepository) relatedToolCalls(ctx context.Context, grant api.Grant) ([]map[string]any, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			tool_call_id, qa_record_id, session_key, run_id, approval_id, tool_name, risk_level,
+			risk_score, policy_decision, enforcement_action, started_at, finished_at,
+			duration_ms, param_summary, param_hash, triggered_modules_json,
+			result_status, result_excerpt, error_text, metadata_json
+		FROM tool_calls
+		WHERE approval_id = ?
+		ORDER BY started_at ASC, tool_call_id ASC
+		LIMIT 20`,
+		grant.ApprovalID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]map[string]any, 0)
+	for rows.Next() {
+		var row toolCallDetailRow
+		if err := rows.Scan(
+			&row.ToolCallID, &row.QARecordID, &row.SessionKey, &row.RunID, &row.ApprovalID,
+			&row.ToolName, &row.RiskLevel, &row.RiskScore, &row.PolicyDecision,
+			&row.EnforcementAction, &row.StartedAt, &row.FinishedAt, &row.DurationMs,
+			&row.ParamSummary, &row.ParamHash, &row.TriggeredModulesJSON, &row.ResultStatus,
+			&row.ResultExcerpt, &row.ErrorText, &row.MetadataJSON,
+		); err != nil {
+			return nil, err
+		}
+		item := mapToolCallListRow(row.toolCallListRow)
+		putString(item, "paramSummary", row.ParamSummary)
+		putString(item, "paramHash", row.ParamHash)
+		putJSONArray[string](item, "triggeredModules", row.TriggeredModulesJSON)
+		putString(item, "errorText", row.ErrorText)
+		putJSONRecord(item, "metadataJson", row.MetadataJSON)
+		if terminalDetail, ok := terminalDetailFromToolCall(item); ok {
+			item = terminalDetail
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func grantExecutionChain(grant api.Grant) api.GrantExecutionChain {
+	return api.GrantExecutionChain{
+		GrantID:        grant.GrantID,
+		ApprovalID:     grant.ApprovalID,
+		ChainID:        grant.ChainID,
+		SessionKey:     grant.SessionKey,
+		ChannelProfile: grant.ChannelProfile,
+		ChannelID:      grant.ChannelID,
+		ConversationID: grant.ConversationID,
+		RequesterID:    grant.RequesterID,
+		RequesterOuID:  grant.RequesterOuID,
+		ToolName:       grant.ToolName,
+		TargetKind:     grant.TargetKind,
+		TargetHash:     grant.TargetHash,
+		Explanation: fmt.Sprintf(
+			"Grant %s belongs to chain %s and approval %s for session %s.",
+			grant.GrantID,
+			grant.ChainID,
+			grant.ApprovalID,
+			grant.SessionKey,
+		),
+	}
 }
 
 func (r *GrantRepository) findOne(ctx context.Context, query string, args ...any) (*api.Grant, error) {
