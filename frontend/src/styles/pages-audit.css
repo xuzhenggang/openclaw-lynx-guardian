@@ -6,7 +6,7 @@
 
 .audit-events-table-panel .data-table th:nth-child(1),
 .audit-events-table-panel .data-table td:nth-child(1) {
-  width: 190px;
+  width: 170px;
 }
 
 .audit-events-table-panel .data-table th:nth-child(2),
@@ -15,31 +15,44 @@
 }
 
 .audit-events-table-panel .data-table th:nth-child(3),
-.audit-events-table-panel .data-table td:nth-child(3),
-.audit-events-table-panel .data-table th:nth-child(4),
-.audit-events-table-panel .data-table td:nth-child(4),
-.audit-events-table-panel .data-table th:nth-child(5),
-.audit-events-table-panel .data-table td:nth-child(5) {
+.audit-events-table-panel .data-table td:nth-child(3) {
   width: 120px;
 }
 
+.audit-events-table-panel .data-table th:nth-child(4),
+.audit-events-table-panel .data-table td:nth-child(4) {
+  width: 220px;
+}
+
+.audit-events-table-panel .data-table th:nth-child(5),
+.audit-events-table-panel .data-table td:nth-child(5),
 .audit-events-table-panel .data-table th:nth-child(6),
 .audit-events-table-panel .data-table td:nth-child(6) {
-  width: 270px;
+  width: 300px;
 }
 
 .audit-events-table-panel .data-table th:nth-child(7),
 .audit-events-table-panel .data-table td:nth-child(7) {
-  width: 220px;
+  width: 120px;
 }
 
 .audit-events-table-panel .data-table th:nth-child(8),
 .audit-events-table-panel .data-table td:nth-child(8) {
-  width: 140px;
+  width: 120px;
 }
 
 .audit-events-table-panel .data-table th:nth-child(9),
 .audit-events-table-panel .data-table td:nth-child(9) {
+  width: 180px;
+}
+
+.audit-events-table-panel .data-table th:nth-child(10),
+.audit-events-table-panel .data-table td:nth-child(10) {
+  width: 120px;
+}
+
+.audit-events-table-panel .data-table th:nth-child(11),
+.audit-events-table-panel .data-table td:nth-child(11) {
   width: 92px;
 }
 
@@ -194,8 +207,28 @@
 
 .audit-event-title-cell strong,
 .audit-event-title-cell code,
+.audit-event-content-cell,
+.audit-event-rule-cell,
 .table-cell-clamp {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+
+.audit-event-content-cell,
+.audit-event-rule-cell {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+}
+
+.audit-detail-dialog__inline-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 @media (max-width: 1280px) {

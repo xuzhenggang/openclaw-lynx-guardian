@@ -217,7 +217,9 @@ describe("EventsPage", () => {
     expect(screen.getByRole("columnheader", { name: "时间" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "事件类型" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "过程" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "对象/内容" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "对象" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "内容摘要" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "模块/规则/目标" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "风险等级" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "处置动作" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "关联问答" })).toBeInTheDocument();
@@ -225,7 +227,7 @@ describe("EventsPage", () => {
     expect(screen.getByText("工具调用检查")).toBeInTheDocument();
     expect(screen.getByText("工具")).toBeInTheDocument();
     expect(screen.getByText("会话")).toBeInTheDocument();
-    expect(screen.getByText("请检查当前项目")).toBeInTheDocument();
+    expect(screen.getAllByText("请检查当前项目").length).toBeGreaterThan(0);
     expect(screen.queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
     expect(screen.queryByText(/system: hidden guard context/)).not.toBeInTheDocument();
     expect(screen.getByText("2 条")).toBeInTheDocument();
@@ -286,6 +288,66 @@ describe("EventsPage", () => {
     });
     const summary = screen.getByLabelText("当前筛选安全事件概览");
     expect(within(summary).getAllByText("9").length).toBeGreaterThan(0);
+  });
+
+  it("orders the total security event card at the far right", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/security-events/summary") {
+        return createJsonResponse(createSecurityEventSummary());
+      }
+      if (url === "/lynx/security-events?pageNum=1&pageSize=10") {
+        return createJsonResponse(createPage([createSecurityEvent()], 1, 10, 42));
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const { container } = renderEventsPage();
+
+    await screen.findByText("security:tool:tool-1");
+    const cards = Array.from(container.querySelectorAll(".audit-summary-grid article"));
+    expect(cards).toHaveLength(6);
+    expect(within(cards.at(-1) as HTMLElement).getByText("安全事件总数")).toBeInTheDocument();
+    expect(within(cards.at(-1) as HTMLElement).getByText("42")).toBeInTheDocument();
+  });
+
+  it("splits event object content and detail judgement evidence into readable regions", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/security-events/summary") {
+        return createJsonResponse(createSecurityEventSummary());
+      }
+      if (url === "/lynx/security-events/security%3Atool%3Atool-1") {
+        return createJsonResponse(createSecurityEventDetail());
+      }
+      if (url === "/lynx/security-events?pageNum=1&pageSize=10") {
+        return createJsonResponse(createPage([createSecurityEvent()], 1, 10, 42));
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    renderEventsPage();
+
+    await screen.findByText("security:tool:tool-1");
+    expect(screen.getByRole("columnheader", { name: "对象" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "内容摘要" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "模块/规则/目标" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "对象/内容" })).not.toBeInTheDocument();
+    expect(screen.getByTitle("Remove-Item -Recurse C:\\important")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 security:tool:tool-1 详情" }));
+    const dialog = await screen.findByRole("dialog", { name: "工具调用检查" });
+    const judgement = within(dialog).getByRole("heading", { name: "判断依据" }).closest("section");
+    expect(judgement).not.toBeNull();
+    expect(within(judgement as HTMLElement).getByText("触发模块")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("SAFE_EXEC")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("触发规则")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("tool.dangerous_delete")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("风险等级")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("决策/动作")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("具体证据")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).getByText("命令包含递归删除和重要路径")).toBeInTheDocument();
+    expect(within(judgement as HTMLElement).queryByText("暂无具体证据")).not.toBeInTheDocument();
   });
 
   it("keeps rendering when the summary payload omits count maps", async () => {

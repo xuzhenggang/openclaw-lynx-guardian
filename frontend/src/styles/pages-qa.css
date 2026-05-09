@@ -60,6 +60,29 @@
   margin-top: auto;
 }
 
+.qa-filter-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(142, 166, 214, 0.26);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.qa-filter-scope span {
+  color: var(--muted-strong);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.qa-filter-scope strong {
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
 .qa-detail-flow {
   display: grid;
   gap: 10px;

@@ -219,7 +219,7 @@ describe("QaRecordsPage", () => {
     const totalCard = screen.getByText("问答总数").closest(".metric-card");
     expect(totalCard).not.toBeNull();
     expect(within(totalCard!).getByText("12")).toBeInTheDocument();
-    const toolCard = screen.getByText("工具次数").closest(".metric-card");
+    const toolCard = screen.getByText("关联工具调用").closest(".metric-card");
     expect(toolCard).not.toBeNull();
     expect(within(toolCard!).getByText("21")).toBeInTheDocument();
     expect(screen.getByText("时间范围")).toBeInTheDocument();
@@ -229,6 +229,22 @@ describe("QaRecordsPage", () => {
     expect(screen.getByRole("columnheader", { name: "详情" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "查看 qa-1 问答详情" })).toBeInTheDocument();
     expect(screen.getByText("请运行测试")).toBeInTheDocument();
+  });
+
+  it("explains QA metric cards without repeating 当前筛选范围 under every number", async () => {
+    renderQaRecordsPage();
+
+    await screen.findByText("qa-1");
+
+    expect(screen.getByText("关联工具调用")).toBeInTheDocument();
+    expect(screen.getByText("触发审批请求")).toBeInTheDocument();
+    expect(screen.getByText("关联安全信号")).toBeInTheDocument();
+    expect(screen.queryByText("工具次数")).not.toBeInTheDocument();
+    expect(screen.queryByText("审批要求")).not.toBeInTheDocument();
+    expect(screen.queryByText("审批请求")).not.toBeInTheDocument();
+    expect(screen.queryByText("安全信号")).not.toBeInTheDocument();
+    expect(screen.queryAllByText("当前筛选范围")).toHaveLength(0);
+    expect(screen.getAllByText("当前筛选条件覆盖")).toHaveLength(1);
   });
 
   it("keeps row clicks inert and uses the detail column as the only drawer entry", async () => {

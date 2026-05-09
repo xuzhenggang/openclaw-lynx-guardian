@@ -167,6 +167,30 @@ function resolveObjectText(event: SecurityEventListItemDto): string {
   return event.objectLabel ?? event.contentExcerpt ?? event.summary ?? event.title;
 }
 
+function resolveContentSummary(event: SecurityEventListItemDto): string {
+  if (event.eventKind === "input") {
+    return resolveObjectText(event);
+  }
+  if (event.eventKind === "tool") {
+    return valueAsDisplayText(event.detailJson?.command)
+      ?? event.contentExcerpt
+      ?? event.summary
+      ?? event.title;
+  }
+  return event.contentExcerpt ?? event.summary ?? event.title;
+}
+
+function resolveModuleRuleTarget(event: SecurityEventListItemDto): string {
+  const modules = stringListFromDetail(event.detailJson?.matchedModules);
+  const rules = stringListFromDetail(event.detailJson?.matchedRules);
+  const target = event.toolCallId ?? event.qaRecordId ?? event.processId;
+  return [
+    modules.length > 0 ? `模块 ${modules.join("、")}` : undefined,
+    rules.length > 0 ? `规则 ${rules.join("、")}` : undefined,
+    target ? `目标 ${target}` : undefined,
+  ].filter(Boolean).join("；") || "暂无";
+}
+
 function formatRawEvidence(event: SecurityEventListItemDto): string {
   return `${formatInteger(event.rawAuditCount)} 条`;
 }
@@ -201,6 +225,11 @@ function stringListFromDetail(value: unknown): string[] {
 function formatDetailList(value: unknown): string {
   const items = stringListFromDetail(value);
   return items.length > 0 ? items.join("；") : "暂无";
+}
+
+function formatConcreteEvidence(value: unknown): string {
+  const items = stringListFromDetail(value);
+  return items.length > 0 ? items.join("；") : "暂无具体证据";
 }
 
 function formatScoreBreakdown(value: unknown): string {
@@ -351,13 +380,6 @@ export function EventsPage() {
       />
 
       <section className="audit-summary-grid" aria-label="当前筛选安全事件概览">
-        <article className="overview-card overview-card--total">
-          <div>
-            <p className="overview-card__label">当前筛选</p>
-            <strong className="overview-card__value">{formatInteger(summary.total)}</strong>
-          </div>
-          <p className="overview-card__note">安全事件</p>
-        </article>
         {RISK_SUMMARY_CARDS.map((card) => (
           <article key={card.riskLevel} className={`overview-card ${card.cssClass}`}>
             <div>
@@ -369,6 +391,13 @@ export function EventsPage() {
             <p className="overview-card__note">{card.note}</p>
           </article>
         ))}
+        <article className="overview-card overview-card--total">
+          <div>
+            <p className="overview-card__label">安全事件总数</p>
+            <strong className="overview-card__value">{formatInteger(summary.total)}</strong>
+          </div>
+          <p className="overview-card__note">当前筛选</p>
+        </article>
       </section>
 
       <section className="filter-panel">
@@ -437,7 +466,9 @@ export function EventsPage() {
             { key: "time", label: "时间" },
             { key: "type", label: "事件类型" },
             { key: "process", label: "过程" },
-            { key: "object", label: "对象/内容", maxWidth: 420, minWidth: 260, width: 340 },
+            { key: "object", label: "对象", maxWidth: 260, minWidth: 180, width: 220 },
+            { key: "content", label: "内容摘要", maxWidth: 380, minWidth: 240, width: 300 },
+            { key: "ruleTarget", label: "模块/规则/目标", maxWidth: 360, minWidth: 240, width: 300 },
             { key: "risk", label: "风险等级" },
             { key: "action", label: "处置动作" },
             { key: "qaRecord", label: "关联问答", maxWidth: 220, minWidth: 150, width: 180 },
@@ -456,10 +487,20 @@ export function EventsPage() {
             process: formatProcessCell(event),
             object: (
               <div className="row-stack audit-event-title-cell">
-                <strong>{event.title}</strong>
-                <span>{resolveObjectText(event)}</span>
-                <code>{event.eventId}</code>
+                <strong title={resolveObjectText(event)}>{resolveObjectText(event)}</strong>
+                <span title={event.title}>{event.title}</span>
+                <code title={event.eventId}>{event.eventId}</code>
               </div>
+            ),
+            content: (
+              <span className="audit-event-content-cell" title={resolveContentSummary(event)}>
+                {resolveContentSummary(event)}
+              </span>
+            ),
+            ruleTarget: (
+              <span className="audit-event-rule-cell" title={resolveModuleRuleTarget(event)}>
+                {resolveModuleRuleTarget(event)}
+              </span>
             ),
             risk: renderRiskBadge(event.riskLevel),
             action: renderActionBadge(event.enforcementAction),
@@ -569,11 +610,21 @@ export function EventsPage() {
               </div>
               <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
                 {[
-                  { label: "命中规则", value: formatDetailList(selectedDetail.detailJson?.matchedRules) },
-                  { label: "命中模块", value: formatDetailList(selectedDetail.detailJson?.matchedModules) },
+                  { label: "触发模块", value: formatDetailList(selectedDetail.detailJson?.matchedModules) },
+                  { label: "触发规则", value: formatDetailList(selectedDetail.detailJson?.matchedRules) },
+                  { label: "风险等级", value: renderRiskBadge(selectedDetail.riskLevel) },
+                  {
+                    label: "决策/动作",
+                    value: (
+                      <span className="audit-detail-dialog__inline-badges">
+                        {renderPolicyDecisionBadge(selectedDetail.policyDecision, selectedDetail.enforcementAction)}
+                        {renderActionBadge(selectedDetail.enforcementAction)}
+                      </span>
+                    ),
+                  },
                   { label: "风险评分", value: selectedDetail.riskScore !== undefined ? String(selectedDetail.riskScore) : "暂无" },
                   { label: "评分明细", value: formatScoreBreakdown(selectedDetail.detailJson?.scoreBreakdown) },
-                  { label: "关键证据", value: formatDetailList(selectedDetail.detailJson?.evidence) },
+                  { label: "具体证据", value: formatConcreteEvidence(selectedDetail.detailJson?.evidence) },
                 ].map((field) => (
                   <div key={field.label} className="detail-panel__field">
                     <dt>{field.label}</dt>

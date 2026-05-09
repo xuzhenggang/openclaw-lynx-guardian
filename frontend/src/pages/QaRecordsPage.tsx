@@ -507,26 +507,26 @@ export function QaRecordsPage() {
         <article className="metric-card">
           <p className="metric-card__label">问答总数</p>
           <strong className="metric-card__value">{formatInteger(summary.total)}</strong>
-          <p className="metric-card__note">当前筛选范围</p>
         </article>
         <article className="metric-card">
-          <p className="metric-card__label">工具次数</p>
+          <p className="metric-card__label">关联工具调用</p>
           <strong className="metric-card__value">{formatInteger(summary.toolCallCount)}</strong>
-          <p className="metric-card__note">当前筛选范围</p>
         </article>
         <article className="metric-card">
-          <p className="metric-card__label">审批请求</p>
+          <p className="metric-card__label">触发审批请求</p>
           <strong className="metric-card__value">{formatInteger(summary.approvalCount)}</strong>
-          <p className="metric-card__note">当前筛选范围</p>
         </article>
         <article className="metric-card">
-          <p className="metric-card__label">安全信号</p>
+          <p className="metric-card__label">关联安全信号</p>
           <strong className="metric-card__value">{formatInteger(summary.detectionCount)}</strong>
-          <p className="metric-card__note">当前筛选范围</p>
         </article>
       </section>
 
       <section className="filter-panel">
+        <div className="qa-filter-scope">
+          <span>当前筛选条件覆盖</span>
+          <strong>{formatInteger(summary.total)} 条问答</strong>
+        </div>
         <form className="audit-filter-form audit-filter-form--compact" onSubmit={handleSubmit}>
           <label className="filter-field">
             <span>状态</span>
