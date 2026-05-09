@@ -58,6 +58,25 @@ describe("resolveUserVisiblePrompt", () => {
     })).toBe(originalUserPrompt);
   });
 
+  it("extracts the original user line from decorated user prompt excerpts", () => {
+    expect(resolveUserVisiblePrompt({
+      userPromptExcerpt: decoratedPromptFixture,
+    })).toBe(originalUserPrompt);
+  });
+
+  it("normalizes user-first transcript fragments without leaking later role text", () => {
+    expect(resolveUserVisiblePrompt({
+      userPromptExcerpt: `user: ${originalUserPrompt}`,
+    })).toBe(originalUserPrompt);
+
+    expect(resolveUserVisiblePrompt({
+      userPromptExcerpt: [
+        `user: ${originalUserPrompt}`,
+        "developer: hidden policy",
+      ].join("\n"),
+    })).toBe(originalUserPrompt);
+  });
+
   it("rejects bootstrap, developer, plugin, and AGENTS text in approval reason candidates", () => {
     expect(resolveUserVisiblePrompt({
       userPromptExcerpt: "<INSTRUCTIONS>\n# AGENTS.md instructions for C:\\repo",

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolCallsPage } from "../../src/pages/ToolCallsPage";
@@ -13,9 +13,9 @@ function createJsonResponse(data: unknown): Response {
   } as unknown as Response;
 }
 
-function createToolCall() {
+function createToolCallWithResult() {
   return {
-    toolCallId: "TOOL-001",
+    toolCallId: "tool-real-command",
     qaRecordId: "qa-1",
     sessionKey: "session-1",
     runId: "run-1",
@@ -29,44 +29,43 @@ function createToolCall() {
     finishedAtMs: 1_776_945_601_500,
     durationMs: 1500,
     metadataJson: {
-      command: "powershell Get-Content secret.txt",
-      cwd: "C:/repo",
-    },
-    paramSummary: "powershell Get-Content secret.txt",
-    resultStatus: "blocked",
-    resultExcerpt: "命令被拦截",
-  };
-}
-
-function createToolCallDetail() {
-  return {
-    ...createToolCall(),
-    paramSummary: "powershell Get-Content secret.txt",
-    paramHash: "param-hash-001",
-    triggeredModules: ["M2:protected_file_access"],
-    errorText: "policy denied",
-    metadataJson: {
-      command: "powershell Get-Content secret.txt",
+      command: "Get-Content package.json",
       cwd: "C:/repo",
       decisionId: "decision-001",
       grantId: "grant-001",
-      taintSummary: "secret-read",
+      taintSummary: "package-read",
       scriptPreflight: {
         policyVersion: 9,
         evidence: [
           {
             evidenceId: "script-1",
-            scriptPath: "bad.py",
+            scriptPath: "read-package.ps1",
             findings: [
               {
-                ruleId: "script.credential_external_exfiltration",
-                behavior: "exfiltrates credentials",
+                ruleId: "script.readonly_package_inspection",
+                behavior: "reads package metadata",
               },
             ],
           },
         ],
       },
     },
+    paramSummary: "Get-Content package.json",
+    paramHash: "param-hash-001",
+    triggeredModules: ["M2:protected_file_access"],
+    resultStatus: "success",
+    resultExcerpt: "name=@shouxuai/openclaw-lynx-guardian",
+  };
+}
+
+function createLegacyToolCallMissingResult() {
+  return {
+    ...createToolCallWithResult(),
+    toolCallId: "tool-legacy-no-result",
+    metadataJson: {},
+    paramSummary: "",
+    resultExcerpt: "",
+    resultStatus: "completed",
   };
 }
 
@@ -101,32 +100,61 @@ describe("ToolCallsPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("uses the concrete command as the list operation and detail hero, not the tool call ID", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createJsonResponse(createPage([createToolCallWithResult()])))
+      .mockResolvedValueOnce(createJsonResponse(createToolCallWithResult()));
+
+    render(<ToolCallsPage />);
+
+    expect(await screen.findByText("tool-real-command")).toBeInTheDocument();
+    expect(screen.getAllByText("Get-Content package.json").length).toBeGreaterThan(0);
+    expect(screen.getByTitle("Get-Content package.json")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 tool-real-command 工具调用详情" }));
+    const dialog = await screen.findByRole("dialog", { name: "工具调用详情" });
+
+    expect(within(dialog).getByText("exec: Get-Content package.json")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("name=@shouxuai/openclaw-lynx-guardian").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText("工具调用 ID")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("tool-real-command").length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText("tool-real-command", { selector: ".audit-detail-dialog__heroSubtitle" })).not.toBeInTheDocument();
+  });
+
+  it("shows a clear legacy missing-result message instead of silent 暂无", async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(createPage([createLegacyToolCallMissingResult()])));
+
+    render(<ToolCallsPage />);
+
+    expect(await screen.findByText("历史记录未保存结果摘要")).toBeInTheDocument();
+    expect(screen.queryByText("暂无结果摘要")).not.toBeInTheDocument();
+  });
+
   it("opens tool call JSON details in a dialog instead of navigating to a missing route", async () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse(createPage([
-        createToolCall(),
+        createToolCallWithResult(),
         {
-          ...createToolCall(),
+          ...createToolCallWithResult(),
           toolCallId: "TOOL-LEGACY",
           qaRecordId: undefined,
         },
       ])))
-      .mockResolvedValueOnce(createJsonResponse(createToolCallDetail()));
+      .mockResolvedValueOnce(createJsonResponse(createToolCallWithResult()));
 
     render(<ToolCallsPage />);
 
-    expect(await screen.findByText("TOOL-001")).toBeInTheDocument();
+    expect(await screen.findByText("tool-real-command")).toBeInTheDocument();
     expect(screen.getAllByText("qa-1").length).toBeGreaterThan(0);
     expect(screen.getByText("未关联问答记录")).toBeInTheDocument();
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/lynx/tool-calls?pageNum=1&pageSize=20");
     expect(screen.queryByRole("link", { name: "查看 JSON" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "命令 / 操作" })).toBeInTheDocument();
-    expect(screen.getAllByText("powershell Get-Content secret.txt").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "查看 TOOL-001 工具调用详情" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看 tool-real-command 工具调用详情" }));
 
     expect(await screen.findByRole("dialog", { name: "工具调用详情" })).toBeInTheDocument();
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/lynx/tool-calls/TOOL-001");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/lynx/tool-calls/tool-real-command");
     expect(screen.getByText("工具调用概览")).toBeInTheDocument();
     expect(screen.getByText("调用上下文")).toBeInTheDocument();
     expect(screen.getByText("参数与结果")).toBeInTheDocument();
@@ -134,21 +162,21 @@ describe("ToolCallsPage", () => {
     expect(screen.getByText("关联问答记录")).toBeInTheDocument();
     expect(screen.getAllByText("qa-1").length).toBeGreaterThan(0);
     expect(screen.getByText("执行命令")).toBeInTheDocument();
-    expect(screen.getAllByText("powershell Get-Content secret.txt").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Get-Content package.json").length).toBeGreaterThan(0);
     expect(screen.getByText("工作目录")).toBeInTheDocument();
     expect(screen.getByText("C:/repo")).toBeInTheDocument();
     expect(screen.getByText("M2:protected_file_access")).toBeInTheDocument();
     expect(screen.getByText("脚本预检证据")).toBeInTheDocument();
-    expect(screen.getByText(/script\.credential_external_exfiltration/)).toBeInTheDocument();
+    expect(screen.getByText(/script\.readonly_package_inspection/)).toBeInTheDocument();
     expect(screen.getByText(/"decisionId": "decision-001"/)).toBeInTheDocument();
   });
 
   it("uses real filters and keeps control-plane metadata out of the table columns", async () => {
     fetchMock
-      .mockResolvedValueOnce(createJsonResponse(createPage([createToolCall()], 1, 20, 41)))
+      .mockResolvedValueOnce(createJsonResponse(createPage([createToolCallWithResult()], 1, 20, 41)))
       .mockResolvedValueOnce(createJsonResponse(createPage([
         {
-          ...createToolCall(),
+          ...createToolCallWithResult(),
           toolCallId: "TOOL-FILTERED",
           toolName: "read_file",
           resultStatus: "success",
@@ -157,7 +185,7 @@ describe("ToolCallsPage", () => {
 
     render(<ToolCallsPage />);
 
-    await screen.findByText("TOOL-001");
+    await screen.findByText("tool-real-command");
     expect(screen.getByLabelText("关键词")).toBeInTheDocument();
     expect(screen.getByLabelText("工具名称")).toBeInTheDocument();
     expect(screen.getByLabelText("状态")).toBeInTheDocument();

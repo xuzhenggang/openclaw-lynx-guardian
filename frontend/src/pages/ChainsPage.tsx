@@ -56,7 +56,7 @@ function formatPromptMeta(
   return (
     [prompt.riskLevel, prompt.status, prompt.runId]
       .filter(Boolean)
-      .join(" · ") || "暂无元数据"
+      .join(" / ") || "暂无元数据"
   );
 }
 
@@ -72,7 +72,7 @@ function formatPromptPreview(
   prompts: ChainSummary["coveredPrompts"],
 ): string {
   if (prompts.length === 0) {
-    return "覆盖的输入词：暂无";
+    return "覆盖输入词：暂无";
   }
   const preview = prompts
     .slice(0, 2)
@@ -81,20 +81,43 @@ function formatPromptPreview(
     .join("；");
   const suffix =
     prompts.length > 2 ? ` 等 ${formatInteger(prompts.length)} 条` : "";
-  return `覆盖的输入词：${preview}${suffix}`;
+  return `覆盖输入词：${preview}${suffix}`;
+}
+
+function formatSessionConversation(chain: ChainSummary): string {
+  return [
+    chain.sessionKey || "暂无会话",
+    chain.conversationId,
+  ].filter(Boolean).join(" / ");
 }
 
 function buildRelationshipItems(chain: ChainSummary): string[] {
   return [
     chain.sessionKey ? `同一会话：${chain.sessionKey}` : undefined,
+    chain.conversationId ? `同一对话：${chain.conversationId}` : undefined,
     chain.channelProfile ? `渠道：${chain.channelProfile}` : undefined,
-    chain.conversationId ? `会话窗口：${chain.conversationId}` : undefined,
     `覆盖问答：${formatInteger(chain.promptCount)} 条`,
+    chain.recentTools.length > 0 ? `关联工具：${joinSignals(chain.recentTools)}` : undefined,
     chain.pendingApproval ? `待审批：${chain.pendingApproval}` : undefined,
     chain.activeGrantId ? `当前放行：${chain.activeGrantId}` : undefined,
+    chain.recentApprovals.length > 0 ? `近期审批：${joinSignals(chain.recentApprovals)}` : undefined,
     chain.recentDenials.length > 0 ? `近期拒绝：${joinSignals(chain.recentDenials)}` : undefined,
-    chain.recentTools.length > 0 ? `关联工具：${joinSignals(chain.recentTools)}` : undefined,
+    chain.recentSensitive.length > 0 || chain.recentIdentity.length > 0 || chain.recentEvasions.length > 0
+      ? `风险连续性：${joinSignals([
+        ...chain.recentSensitive,
+        ...chain.recentIdentity,
+        ...chain.recentEvasions,
+      ])}`
+      : undefined,
   ].filter((item): item is string => Boolean(item));
+}
+
+function TitledText({ className, text }: { className?: string; text: string }) {
+  return (
+    <span className={className} title={text}>
+      {text}
+    </span>
+  );
 }
 
 export function ChainsPage() {
@@ -198,10 +221,10 @@ export function ChainsPage() {
 
       <Card className="table-explanation-card" size="small" title="多轮链路说明">
         <Typography.Paragraph>
-          多轮链路统计一段任务区间里多次有关联的输入、判断、工具调用、审批和放行，用来回答哪些对话被当成同一个风险上下文一起看。
+          多轮链路统计一段任务区间里多次有关联的输入、判断、工具调用、审批和放行，用来回答哪些对话被当成同一条风险上下文一起看。
         </Typography.Paragraph>
         <Typography.Paragraph>
-          示例：用户先要求读取配置，随后改成读取同一路径，再触发审批或放行；这些有关联判断会进入同一条多轮链路。taint、放行记录与审批证据进入详情。
+          示例：用户先要求读取配置，随后改成读取同一路径，再触发审批或放行；这些有关联判断会进入同一条多轮链路。
         </Typography.Paragraph>
       </Card>
 
@@ -213,21 +236,21 @@ export function ChainsPage() {
           columns={[
             {
               key: "chain",
-              label: "链路",
+              label: "链路 ID",
               maxWidth: 220,
               minWidth: 130,
               width: 160,
             },
             {
               key: "session",
-              label: "会话",
-              maxWidth: 240,
-              minWidth: 150,
-              width: 180,
+              label: "会话 / 对话",
+              maxWidth: 260,
+              minWidth: 170,
+              width: 192,
             },
             {
               key: "prompts",
-              label: "关联问答",
+              label: "覆盖输入词",
               maxWidth: 320,
               minWidth: 200,
               width: 260,
@@ -257,49 +280,47 @@ export function ChainsPage() {
           error={error}
           loading={loading}
           onRetry={retry}
-          rows={items.map((item) => ({
-            id: item.chainId,
-            chain: (
-              <div className="row-stack">
-                <strong>{item.chainId}</strong>
-              </div>
-            ),
-            session: (
-              <div className="row-stack">
-                <strong>{item.sessionKey || "暂无会话"}</strong>
-                <span>{item.channelProfile || "未知渠道"}</span>
-              </div>
-            ),
-            prompts: (
-              <span className="chain-prompt-preview">
-                {formatPromptPreview(item.coveredPrompts)}
-              </span>
-            ),
-            signals: joinSignals([
-              ...item.recentSensitive,
-              ...item.recentIdentity,
-              ...item.recentEvasions,
-            ]),
-            tools: joinSignals(item.recentTools),
-            review:
-              [
-                item.pendingApproval ? "待审批" : undefined,
-                item.activeGrantId ? "有放行" : undefined,
-                item.recentDenials.length > 0 ? "近期拒绝" : undefined,
-              ]
-                .filter(Boolean)
-                .join("；") || "暂无",
-            detail: (
-              <button
-                aria-label={`查看 ${item.chainId} 链路详情`}
-                className="btn btn--compact"
-                type="button"
-                onClick={() => setSelectedChain(item)}
-              >
-                详情
-              </button>
-            ),
-          }))}
+          rows={items.map((item) => {
+            const sessionConversation = formatSessionConversation(item);
+            const promptPreview = formatPromptPreview(item.coveredPrompts);
+            return {
+              id: item.chainId,
+              chain: <TitledText text={item.chainId} />,
+              session: (
+                <div className="row-stack" title={sessionConversation}>
+                  <strong>{item.sessionKey || "暂无会话"}</strong>
+                  <span>{item.conversationId || item.channelProfile || "未知对话"}</span>
+                </div>
+              ),
+              prompts: (
+                <TitledText className="chain-prompt-preview" text={promptPreview} />
+              ),
+              signals: joinSignals([
+                ...item.recentSensitive,
+                ...item.recentIdentity,
+                ...item.recentEvasions,
+              ]),
+              tools: joinSignals(item.recentTools),
+              review:
+                [
+                  item.pendingApproval ? "待审批" : undefined,
+                  item.activeGrantId ? "有放行" : undefined,
+                  item.recentDenials.length > 0 ? "近期拒绝" : undefined,
+                ]
+                  .filter(Boolean)
+                  .join("；") || "暂无",
+              detail: (
+                <button
+                  aria-label={`查看 ${item.chainId} 链路详情`}
+                  className="btn btn--compact"
+                  type="button"
+                  onClick={() => setSelectedChain(item)}
+                >
+                  详情
+                </button>
+              ),
+            };
+          })}
         />
         <TablePagination {...paginationProps} ariaLabel="链路列表分页" />
       </section>
@@ -317,7 +338,7 @@ export function ChainsPage() {
             <section className="audit-detail-dialog__hero">
               <div className="audit-detail-dialog__heroText">
                 <p className="audit-detail-dialog__eyebrow">链路概览</p>
-                <p className="audit-detail-dialog__heroSubtitle">
+                <p className="audit-detail-dialog__heroSubtitle" title={formatPromptPreview(selectedChain.coveredPrompts)}>
                   {formatPromptPreview(selectedChain.coveredPrompts)}
                 </p>
               </div>
@@ -345,7 +366,7 @@ export function ChainsPage() {
               </div>
             </section>
 
-            <section className="audit-detail-dialog__section">
+            <section className="audit-detail-dialog__section" aria-label="关联关系">
               <div className="panel__header audit-detail-dialog__sectionHeader">
                 <div>
                   <h3 className="panel__title">关联关系</h3>
@@ -381,13 +402,13 @@ export function ChainsPage() {
                 ].map((field) => (
                   <div key={field.label} className="detail-panel__field">
                     <dt>{field.label}</dt>
-                    <dd>{field.value}</dd>
+                    <dd title={field.value}>{field.value}</dd>
                   </div>
                 ))}
               </dl>
             </section>
 
-            <section className="audit-detail-dialog__section">
+            <section className="audit-detail-dialog__section" aria-label="覆盖输入词">
               <div className="panel__header audit-detail-dialog__sectionHeader">
                 <div>
                   <h3 className="panel__title">覆盖输入词</h3>
@@ -396,19 +417,22 @@ export function ChainsPage() {
               </div>
               {selectedChain.coveredPrompts.length > 0 ? (
                 <ol className="prompt-coverage-list">
-                  {selectedChain.coveredPrompts.map((prompt) => (
-                    <li
-                      className="prompt-coverage-list__item"
-                      key={`${prompt.qaRecordId}-${prompt.startedAtMs ?? 0}`}
-                    >
-                      <p className="prompt-coverage-list__text">
-                        {formatCoveredPromptText(prompt)}
-                      </p>
-                      <span className="prompt-coverage-list__meta">
-                        {formatPromptMeta(prompt)}
-                      </span>
-                    </li>
-                  ))}
+                  {selectedChain.coveredPrompts.map((prompt) => {
+                    const promptText = formatCoveredPromptText(prompt);
+                    return (
+                      <li
+                        className="prompt-coverage-list__item"
+                        key={`${prompt.qaRecordId}-${prompt.startedAtMs ?? 0}`}
+                      >
+                        <p className="prompt-coverage-list__text" title={promptText}>
+                          {promptText}
+                        </p>
+                        <span className="prompt-coverage-list__meta">
+                          {formatPromptMeta(prompt)}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ol>
               ) : (
                 <p className="muted-text">暂无覆盖输入词</p>

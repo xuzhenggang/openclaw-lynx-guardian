@@ -4,11 +4,14 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChainsPage } from "../../src/pages/ChainsPage";
 import { MISSING_USER_PROMPT_TEXT } from "../../src/utils/prompts";
+
+const originalUserPrompt = "请检查当前项目的 package.json 并总结 name 字段";
 
 function createJsonResponse(data: unknown): Response {
   return {
@@ -102,6 +105,63 @@ describe("ChainsPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("separates chain, session, and covered prompt fields in the table", async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(createPage([createChain()])));
+
+    render(<ChainsPage />);
+
+    await screen.findByText("chain-1");
+    expect(screen.getByRole("columnheader", { name: "链路 ID" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "会话 / 对话" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "覆盖输入词" })).toBeInTheDocument();
+    expect(screen.getByTitle("chain-1")).toBeInTheDocument();
+    expect(screen.getByTitle("session-1 / conversation-1")).toBeInTheDocument();
+  });
+
+  it("shows relation reasoning above covered prompts and strips injected prompt text", async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(createPage([
+      {
+        ...createChain("chain-relation"),
+        coveredPrompts: [
+          {
+            qaRecordId: "qa-injected",
+            userPromptExcerpt: "OpenClaw guard policy: classify this request",
+            riskLevel: "L1",
+            startedAtMs: 3,
+            status: "completed",
+          },
+          {
+            qaRecordId: "qa-user",
+            userPromptExcerpt: [
+              "system: hidden guard context",
+              "developer: hidden policy",
+              `user: ${originalUserPrompt}`,
+            ].join("\n"),
+            riskLevel: "L2",
+            startedAtMs: 4,
+            status: "completed",
+          },
+        ],
+        promptCount: 2,
+      },
+    ])));
+
+    render(<ChainsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "查看 chain-relation 链路详情" }));
+    const dialog = await screen.findByRole("dialog", { name: "链路详情" });
+    const relation = within(dialog).getByLabelText("关联关系");
+    const promptSection = within(dialog).getByLabelText("覆盖输入词");
+
+    expect(relation.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(relation).getByText(/同一会话/)).toBeInTheDocument();
+    expect(within(relation).getByText(/覆盖问答：2 条/)).toBeInTheDocument();
+    expect(within(relation).getByText(/关联工具：exec/)).toBeInTheDocument();
+    expect(within(dialog).getByText(originalUserPrompt)).toBeInTheDocument();
+    expect(within(dialog).getByText(MISSING_USER_PROMPT_TEXT)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
+  });
+
   it("uses filters, pagination and keeps chain internals in audit-style details", async () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse(createPage([createChain()], 1, 20, 41)))
@@ -116,18 +176,11 @@ describe("ChainsPage", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/lynx/chains?pageNum=1&pageSize=20");
     expect(screen.getByTitle("2")).toBeInTheDocument();
     expect(screen.getByText("多轮链路说明")).toBeInTheDocument();
-    expect(screen.getByText(/多轮链路统计一段任务区间/)).toBeInTheDocument();
-    expect(screen.getByText(/示例：用户先要求读取配置/)).toBeInTheDocument();
     expect(container.querySelector(".table-explanation-card.ant-card")).not.toBeNull();
     expect(container.querySelector(".table-panel .table-explanation-card")).toBeNull();
     expect(container.querySelector(".table-panel__header .panel__subtitle")).toBeNull();
     expect(Number.parseInt(container.querySelector("table")?.style.minWidth ?? "0", 10)).toBeLessThanOrEqual(1136);
-    expect(
-      screen.getByText("覆盖的输入词：first prompt；second prompt"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "链路" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "会话" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "关联问答" })).toBeInTheDocument();
+    expect(screen.getByText("覆盖输入词：first prompt；second prompt")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "风险线索" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "人工动作" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "详情" })).toBeInTheDocument();
@@ -146,7 +199,7 @@ describe("ChainsPage", () => {
     expect(screen.getByText("链路概览")).toBeInTheDocument();
     expect(screen.getByText("关联关系")).toBeInTheDocument();
     expect(screen.getByText("链路信号")).toBeInTheDocument();
-    expect(screen.getByText("覆盖输入词")).toBeInTheDocument();
+    expect(screen.getAllByText("覆盖输入词").length).toBeGreaterThan(0);
     expect(screen.getByText("同一会话：session-1")).toBeInTheDocument();
     expect(screen.getByText("覆盖问答：2 条")).toBeInTheDocument();
     expect(screen.getByText("secret-read")).toBeInTheDocument();
@@ -185,56 +238,14 @@ describe("ChainsPage", () => {
     expect(screen.getAllByText("暂无").length).toBeGreaterThan(0);
   });
 
-  it("does not show injected guard text as covered user prompts", async () => {
-    fetchMock.mockResolvedValueOnce(
-      createJsonResponse(createPage([
-        {
-          ...createChain("chain-injected"),
-          coveredPrompts: [
-            {
-              qaRecordId: "qa-injected",
-              userPromptExcerpt: "OpenClaw guard policy: classify this request",
-              riskLevel: "L1",
-              startedAtMs: 3,
-              status: "completed",
-            },
-            {
-              qaRecordId: "qa-user",
-              userPromptExcerpt: "请检查当前工程",
-              riskLevel: "L2",
-              startedAtMs: 4,
-              status: "completed",
-            },
-          ],
-          promptCount: 2,
-        },
-      ])),
-    );
-
-    render(<ChainsPage />);
-
-    await screen.findByText("chain-injected");
-    expect(screen.queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
-    expect(screen.getByText(`覆盖的输入词：${MISSING_USER_PROMPT_TEXT}；请检查当前工程`)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "查看 chain-injected 链路详情" }));
-
-    expect(await screen.findByRole("dialog", { name: "链路详情" })).toBeInTheDocument();
-    expect(screen.queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
-    expect(screen.getByText(MISSING_USER_PROMPT_TEXT)).toBeInTheDocument();
-    expect(screen.getByText("请检查当前工程")).toBeInTheDocument();
-  });
-
   it("uses an Ant explanation card and keeps the empty chain state inside the table", async () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse({ items: [] }));
 
     const { container } = render(<ChainsPage />);
 
     expect(await screen.findByText("多轮链路说明")).toBeInTheDocument();
-    expect(screen.getByText(/一段任务区间里多次有关联的输入/)).toBeInTheDocument();
-    expect(screen.getByText(/示例：用户先要求读取配置/)).toBeInTheDocument();
     expect(container.querySelector(".metric-grid--narrow")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "链路" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "链路 ID" })).toBeInTheDocument();
     expect(container.querySelector(".table-explanation-card.ant-card")).not.toBeNull();
     expect(container.querySelector(".table-panel .table-explanation-card")).toBeNull();
     expect(container.querySelector(".table-panel__header .panel__subtitle")).toBeNull();

@@ -62,6 +62,10 @@ export function resolveUserVisiblePrompt(source: UserPromptSource): string {
   ];
 
   for (const candidate of candidates) {
+    const extractedText = extractUserLineFromTranscript(candidate);
+    if (extractedText) {
+      return extractedText;
+    }
     const text = cleanPromptCandidate(candidate);
     if (text) {
       return text;

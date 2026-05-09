@@ -12,7 +12,11 @@ import { paginateMockPage, usePagedListResource } from "../hooks/usePagedListRes
 import { formatDuration, formatInteger, formatTimestamp } from "../utils/format";
 import { formatQaRecordId } from "../utils/qa-records";
 import { formatToolLabel, renderStateBadge } from "../utils/status";
-import { resolveToolOperation } from "../utils/tool-display";
+import {
+  resolveToolHeroSummary,
+  resolveToolOperation,
+  resolveToolResultSummary,
+} from "../utils/tool-display";
 
 interface ToolCallFilters {
   q: string;
@@ -43,8 +47,7 @@ function buildToolCallQuery(filters: ToolCallFilters): Omit<ToolCallListQuery, "
 }
 
 function readToolMetadata(call: ToolCallListItemDto): Record<string, unknown> {
-  const value = (call as ToolCallListItemDto & { metadataJson?: Record<string, unknown> }).metadataJson;
-  return value ?? {};
+  return call.metadataJson ?? {};
 }
 
 function formatToolDecision(call: ToolCallListItemDto): string {
@@ -84,6 +87,14 @@ function generalMetadata(metadata: ToolCallDetailDto["metadataJson"] | undefined
   }
   const { scriptPreflight: _scriptPreflight, ...rest } = metadata;
   return rest;
+}
+
+function TitledText({ className, text }: { className?: string; text: string }) {
+  return (
+    <span className={className} title={text}>
+      {text}
+    </span>
+  );
 }
 
 export function ToolCallsPage() {
@@ -245,32 +256,36 @@ export function ToolCallsPage() {
           error={error}
           loading={loading}
           onRetry={retry}
-          rows={items.map((call) => ({
-            id: call.toolCallId,
-            operation: resolveToolOperation(call).operationLabel,
-            call: (
-              <div className="row-stack">
-                <strong>{call.toolCallId}</strong>
-                <span>{formatQaRecordId(call.qaRecordId)}</span>
-              </div>
-            ),
-            tool: <strong>{formatToolLabel(call.toolName)}</strong>,
-            status: renderStateBadge(call.resultStatus),
-            duration: formatDuration(call.durationMs),
-            summary: call.resultExcerpt ?? "暂无结果摘要",
-            time: formatTimestamp(call.startedAtMs),
-            detail: (
-              <button
-                aria-label={`查看 ${call.toolCallId} 工具调用详情`}
-                className="btn btn--compact"
-                disabled={detailLoadingId === call.toolCallId}
-                type="button"
-                onClick={() => void handleOpenDetail(call.toolCallId)}
-              >
-                {detailLoadingId === call.toolCallId ? "加载中" : "查看详情"}
-              </button>
-            ),
-          }))}
+          rows={items.map((call) => {
+            const operation = resolveToolOperation(call).operationLabel;
+            const summary = resolveToolResultSummary(call);
+            return {
+              id: call.toolCallId,
+              operation: <TitledText text={operation} />,
+              call: (
+                <div className="row-stack">
+                  <strong title={call.toolCallId}>{call.toolCallId}</strong>
+                  <span>{formatQaRecordId(call.qaRecordId)}</span>
+                </div>
+              ),
+              tool: <strong>{formatToolLabel(call.toolName)}</strong>,
+              status: renderStateBadge(call.resultStatus),
+              duration: formatDuration(call.durationMs),
+              summary: <TitledText text={summary} />,
+              time: formatTimestamp(call.startedAtMs),
+              detail: (
+                <button
+                  aria-label={`查看 ${call.toolCallId} 工具调用详情`}
+                  className="btn btn--compact"
+                  disabled={detailLoadingId === call.toolCallId}
+                  type="button"
+                  onClick={() => void handleOpenDetail(call.toolCallId)}
+                >
+                  {detailLoadingId === call.toolCallId ? "加载中" : "查看详情"}
+                </button>
+              ),
+            };
+          })}
         />
         <TablePagination {...paginationProps} />
       </section>
@@ -334,8 +349,8 @@ export function ToolCallsPage() {
             <section className="audit-detail-dialog__hero">
               <div className="audit-detail-dialog__heroText">
                 <p className="audit-detail-dialog__eyebrow">工具调用概览</p>
-                <p className="audit-detail-dialog__heroSubtitle">
-                  {selectedDetail.resultExcerpt ?? selectedDetail.toolCallId}
+                <p className="audit-detail-dialog__heroSubtitle" title={resolveToolHeroSummary(selectedDetail)}>
+                  {resolveToolHeroSummary(selectedDetail)}
                 </p>
               </div>
               <div className="audit-detail-dialog__chips" aria-label="工具调用概览标签">
@@ -382,7 +397,7 @@ export function ToolCallsPage() {
                 ].map((field) => (
                   <div key={field.label} className="detail-panel__field">
                     <dt>{field.label}</dt>
-                    <dd>{field.value}</dd>
+                    <dd title={field.value}>{field.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -397,7 +412,7 @@ export function ToolCallsPage() {
               </div>
               <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
                 {[
-                  { label: "执行命令", value: selectedOperation?.command ?? "暂无" },
+                  { label: "执行命令", value: selectedOperation?.command ?? selectedOperation?.operationLabel ?? "暂无" },
                   { label: "工作目录", value: selectedOperation?.cwd ?? "暂无" },
                   { label: "参数", value: selectedOperation?.args ? selectedOperation.args.join(" ") : "暂无" },
                   { label: "参数摘要", value: selectedDetail.paramSummary ?? "暂无" },
@@ -406,11 +421,11 @@ export function ToolCallsPage() {
                   { label: "决策 / Grant", value: formatToolDecision(selectedDetail) },
                   { label: "Taint / 外传", value: formatToolSignals(selectedDetail) },
                   { label: "错误信息", value: selectedDetail.errorText ?? "暂无" },
-                  { label: "结果摘要", value: selectedDetail.resultExcerpt ?? "暂无" },
+                  { label: "结果摘要", value: resolveToolResultSummary(selectedDetail) },
                 ].map((field) => (
                   <div key={field.label} className="detail-panel__field">
                     <dt>{field.label}</dt>
-                    <dd>{field.value}</dd>
+                    <dd title={field.value}>{field.value}</dd>
                   </div>
                 ))}
               </dl>

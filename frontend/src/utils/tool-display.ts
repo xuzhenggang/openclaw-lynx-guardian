@@ -1,8 +1,13 @@
 import type { ToolCallDetailDto, ToolCallListItemDto } from "@lynx/local-console-shared";
 
-const MISSING_OPERATION_LABEL = "历史记录未保存具体命令";
+export const MISSING_OPERATION_LABEL = "历史记录未保存具体命令";
+export const MISSING_RESULT_SUMMARY = "历史记录未保存结果摘要";
 
-type ToolCallWithOperationFields = Partial<ToolCallListItemDto & Pick<ToolCallDetailDto, "metadataJson" | "paramSummary">>;
+type ToolCallWithOperationFields = Partial<
+  ToolCallListItemDto & Pick<ToolCallDetailDto, "metadataJson" | "paramSummary">
+>;
+
+type ToolCallWithResultFields = Partial<Pick<ToolCallListItemDto, "resultExcerpt">>;
 
 export interface ToolOperationDisplay {
   operationLabel: string;
@@ -13,7 +18,7 @@ export interface ToolOperationDisplay {
 }
 
 function readNonEmptyString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 }
 
 function readStringArray(value: unknown): string[] | undefined {
@@ -73,4 +78,14 @@ export function resolveToolOperation(call: ToolCallWithOperationFields): ToolOpe
     hasStoredCommandDetail,
     operationLabel: MISSING_OPERATION_LABEL,
   };
+}
+
+export function resolveToolResultSummary(call: ToolCallWithResultFields): string {
+  return readNonEmptyString(call.resultExcerpt) ?? MISSING_RESULT_SUMMARY;
+}
+
+export function resolveToolHeroSummary(call: ToolCallWithOperationFields): string {
+  const operation = resolveToolOperation(call).operationLabel;
+  const toolName = readNonEmptyString(call.toolName) ?? "tool";
+  return `${toolName}: ${operation}`;
 }
