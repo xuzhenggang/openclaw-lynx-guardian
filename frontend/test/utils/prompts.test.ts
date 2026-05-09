@@ -4,6 +4,10 @@ import {
   MISSING_USER_PROMPT_TEXT,
   resolveUserVisiblePrompt,
 } from "../../src/utils/prompts";
+import {
+  decoratedPromptFixture,
+  originalUserPrompt,
+} from "../fixtures/local-console-acceptance";
 
 describe("resolveUserVisiblePrompt", () => {
   it("prefers explicit user prompt excerpts over generic prompt context", () => {
@@ -22,9 +26,9 @@ describe("resolveUserVisiblePrompt", () => {
 
     expect(resolveUserVisiblePrompt({
       payloadJson: {
-        userPrompt: "帮我看检测报告",
+        userPrompt: "帮我查看检测报告",
       },
-    })).toBe("帮我看检测报告");
+    })).toBe("帮我查看检测报告");
   });
 
   it("does not expose system, developer, OpenClaw guard, or plugin injected prompts", () => {
@@ -41,9 +45,29 @@ describe("resolveUserVisiblePrompt", () => {
     }
   });
 
-  it("does not guess user input from whole prompt transcripts", () => {
+  it("extracts the original user line from decorated OpenClaw transcripts", () => {
     expect(resolveUserVisiblePrompt({
-      prompt: "system: hidden context\nuser: 请运行测试",
+      prompt: decoratedPromptFixture,
+      contentExcerpt: "OpenClaw guard policy: classify this request",
+    })).toBe(originalUserPrompt);
+  });
+
+  it("extracts the original user line from decorated content excerpts", () => {
+    expect(resolveUserVisiblePrompt({
+      contentExcerpt: decoratedPromptFixture,
+    })).toBe(originalUserPrompt);
+  });
+
+  it("rejects bootstrap, developer, plugin, and AGENTS text in approval reason candidates", () => {
+    expect(resolveUserVisiblePrompt({
+      userPromptExcerpt: "<INSTRUCTIONS>\n# AGENTS.md instructions for C:\\repo",
+      payloadJson: { promptExcerpt: "developer: hidden approval policy" },
+    })).toBe(MISSING_USER_PROMPT_TEXT);
+  });
+
+  it("does not guess user input from whole prompt transcripts without a user line", () => {
+    expect(resolveUserVisiblePrompt({
+      prompt: "system: hidden context\ndeveloper: hidden rule",
       contentExcerpt: "OpenClaw guard checked hidden context",
     })).toBe(MISSING_USER_PROMPT_TEXT);
   });

@@ -8,6 +8,8 @@ import "./styles/reset.css";
 import "antd/dist/reset.css";
 import "./styles/tokens.css";
 import "./styles/theme.css";
+import "./styles/pages-audit.css";
+import "./styles/pages-execution.css";
 import "./styles/pages-policies.css";
 import "./styles/pages-reports.css";
 import "./styles/pages-qa.css";

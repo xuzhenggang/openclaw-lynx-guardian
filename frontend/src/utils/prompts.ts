@@ -34,6 +34,23 @@ function cleanPromptCandidate(value: unknown): string | undefined {
   return text;
 }
 
+function extractUserLineFromTranscript(value: unknown): string | undefined {
+  const text = stringValue(value);
+  if (!text) {
+    return undefined;
+  }
+
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\s*user\s*:\s*(.+?)\s*$/i);
+    const userText = match?.[1]?.trim();
+    if (userText && !isInjectedPromptText(userText)) {
+      return userText;
+    }
+  }
+
+  return undefined;
+}
+
 export function resolveUserVisiblePrompt(source: UserPromptSource): string {
   const candidates = [
     source.userPromptExcerpt,
@@ -46,6 +63,22 @@ export function resolveUserVisiblePrompt(source: UserPromptSource): string {
 
   for (const candidate of candidates) {
     const text = cleanPromptCandidate(candidate);
+    if (text) {
+      return text;
+    }
+  }
+
+  const transcriptCandidates = [
+    source.prompt,
+    source.contentExcerpt,
+    source.detailJson?.prompt,
+    source.detailJson?.promptExcerpt,
+    source.payloadJson?.prompt,
+    source.payloadJson?.promptExcerpt,
+  ];
+
+  for (const candidate of transcriptCandidates) {
+    const text = extractUserLineFromTranscript(candidate);
     if (text) {
       return text;
     }

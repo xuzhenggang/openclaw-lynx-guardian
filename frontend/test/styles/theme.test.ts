@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { cleanup, render } from "@testing-library/react";
+import { ConfigProvider, Select } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { createElement } from "react";
+import { afterEach, describe, expect, it } from "vitest";
 
 async function readThemeCss(): Promise<string> {
   return readFile(resolve("src/styles/theme.css"), "utf8");
@@ -28,7 +32,23 @@ function extractCssRules(css: string, selector: string): string[] {
   return [...css.matchAll(new RegExp(`(?:^|\\n)${escapedSelector}\\s*{([^}]*)}`, "g"))].map((match) => match[1]);
 }
 
+function installStyle(css: string): () => void {
+  const style = document.createElement("style");
+  style.textContent = css;
+  document.head.append(style);
+  return () => {
+    style.remove();
+  };
+}
+
 describe("theme styles", () => {
+  afterEach(() => {
+    cleanup();
+    document.head.querySelectorAll("style").forEach((style) => {
+      style.remove();
+    });
+  });
+
   it("keeps page-private policy, report, and QA styles out of theme.css", async () => {
     const themeCss = await readThemeCss();
     const policyCss = await readCss("src/styles/pages-policies.css");
@@ -65,6 +85,85 @@ describe("theme styles", () => {
     expect(css).toMatch(/\.filter-field \.ant-input-affix-wrapper \.ant-input\s*{[\s\S]*height: auto;[\s\S]*min-height: 0;[\s\S]*line-height: 20px;/);
   });
 
+  it("keeps Ant multi-select tags compact inside filter controls", async () => {
+    const css = await readThemeCss();
+
+    expect(css).toMatch(/\.filter-field \.ant-select-multiple \.ant-select-selection-item\s*{[\s\S]*min-height: 0(?: !important)?;[\s\S]*max-height: 24px(?: !important)?;[\s\S]*line-height: 20px(?: !important)?;/);
+    expect(css).toMatch(/\.filter-field \.ant-select-selector\s*{[\s\S]*align-items: center;[\s\S]*min-height: 40px;/);
+  });
+
+  it("renders selected Ant multi-select labels as compact chips inside filter controls", async () => {
+    const removeStyle = installStyle(await readThemeCss());
+
+    try {
+      render(
+        createElement(
+          ConfigProvider,
+          { locale: zhCN },
+          createElement(
+            "label",
+            { className: "filter-field" },
+            createElement("span", null, "风险等级"),
+            createElement(Select, {
+              mode: "multiple",
+              open: false,
+              options: [
+                { label: "高风险 L3", value: "L3" },
+                { label: "严重风险 L4", value: "L4" },
+              ],
+              value: ["L3", "L4"],
+            }),
+          ),
+        ),
+      );
+
+      const chips = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".filter-field .ant-select-multiple .ant-select-selection-item",
+        ),
+      );
+
+      expect(chips).toHaveLength(2);
+      for (const chip of chips) {
+        const style = getComputedStyle(chip);
+        expect(style.minHeight).toBe("0px");
+        expect(style.maxHeight).toBe("24px");
+        expect(style.lineHeight).toBe("20px");
+      }
+    } finally {
+      removeStyle();
+    }
+  });
+
+  it("keeps page-private selectors out of theme.css and gives real ownership to page CSS files", async () => {
+    const themeCss = await readThemeCss();
+    const auditCss = await readCss("src/styles/pages-audit.css");
+    const executionCss = await readCss("src/styles/pages-execution.css");
+    const reportCss = await readCss("src/styles/pages-reports.css");
+
+    for (const selector of [
+      ".audit-detail-dialog",
+      ".decision-summary-grid",
+      ".tool-call",
+      ".chain",
+      ".approval",
+      ".grant",
+      ".session",
+      ".report-side-panel",
+      ".audit-summary-grid",
+      ".split-grid",
+      ".split-grid--equal",
+      ".modal-dialog .audit-filter-form",
+      ".modal-dialog .filter-field--search",
+    ]) {
+      expect(themeCss).not.toContain(selector);
+    }
+
+    expect(auditCss.split("\n").length).toBeGreaterThanOrEqual(200);
+    expect(executionCss.split("\n").length).toBeGreaterThanOrEqual(200);
+    expect(reportCss).toContain(".report-body");
+  });
+
   it("sizes filter fields by control type instead of first-column position", async () => {
     const css = await readThemeCss();
     const formRule = extractCssRule(css, ".audit-filter-form");
@@ -95,21 +194,19 @@ describe("theme styles", () => {
   });
 
   it("keeps audit-style detail dialogs visually structured", async () => {
-    const css = await readThemeCss();
+    const css = await readCss("src/styles/pages-audit.css");
     const dialogRule = extractCssRule(css, ".audit-detail-dialog");
     const heroRule = extractCssRule(css, ".audit-detail-dialog__hero");
     const summaryRule = extractCssRule(css, ".audit-detail-dialog__summary-grid");
-    const wideRule = extractCssRule(css, ".modal-dialog--wide");
 
     expect(dialogRule).toContain("display: grid;");
     expect(heroRule).toContain("linear-gradient");
     expect(summaryRule).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
-    expect(wideRule).toContain("width: min(1120px, calc(100vw - 32px));");
     expect(css).toContain(".audit-detail-dialog__evidence-grid");
   });
 
   it("keeps audit detail labels separated from their values", async () => {
-    const css = await readThemeCss();
+    const css = await readCss("src/styles/pages-execution.css");
     const fieldRule = extractCssRule(css, ".detail-panel__field");
     const ddRule = extractCssRule(css, ".detail-panel dd");
 
@@ -120,10 +217,23 @@ describe("theme styles", () => {
   });
 
   it("limits form layouts inside modal dialogs to at most two columns", async () => {
-    const css = await readThemeCss();
+    const css = await readCss("src/styles/pages-execution.css");
 
     expect(css).toMatch(/\.modal-dialog \.audit-filter-form,\s*\.modal-dialog \.audit-filter-form--compact\s*{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
     expect(css).toMatch(/\.modal-dialog \.filter-field--search\s*{[\s\S]*grid-column: auto;/);
+  });
+
+  it("keeps split grids single-column on narrower execution pages", async () => {
+    const css = await readCss("src/styles/pages-execution.css");
+    const baseSplitIndex = css.indexOf(".split-grid {");
+    const baseEqualIndex = css.indexOf(".split-grid--equal {");
+    const responsiveIndex = css.indexOf("@media (max-width: 1280px)");
+
+    expect(baseSplitIndex).toBeGreaterThanOrEqual(0);
+    expect(baseEqualIndex).toBeGreaterThanOrEqual(0);
+    expect(responsiveIndex).toBeGreaterThan(baseSplitIndex);
+    expect(responsiveIndex).toBeGreaterThan(baseEqualIndex);
+    expect(css.slice(responsiveIndex)).toMatch(/\.split-grid,\s*\.split-grid--equal\s*{[\s\S]*grid-template-columns: 1fr;/);
   });
 
   it("caps token trend bars so sparse charts do not become full-width columns", async () => {
@@ -141,7 +251,7 @@ describe("theme styles", () => {
   });
 
   it("keeps decision summary cards compact for dense review pages", async () => {
-    const css = await readThemeCss();
+    const css = await readCss("src/styles/pages-audit.css");
     const cardRule = extractCssRule(css, ".decision-summary-grid .summary-card");
     const valueRule = extractCssRule(css, ".decision-summary-grid .summary-card__value");
 

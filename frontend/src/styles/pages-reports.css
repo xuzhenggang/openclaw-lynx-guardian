@@ -86,6 +86,7 @@
   font-weight: 800;
 }
 
+.report-body,
 .report-side-panel__markdown {
   max-height: 520px;
   overflow: auto;

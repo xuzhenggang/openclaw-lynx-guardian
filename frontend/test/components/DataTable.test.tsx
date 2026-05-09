@@ -4,6 +4,11 @@ import zhCN from "antd/locale/zh_CN";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DataTable } from "../../src/components/tables/DataTable";
+import {
+  longApprovalId,
+  longCommand,
+  longReportPath,
+} from "../fixtures/local-console-acceptance";
 
 function mockElementOverflow(isOverflowing: boolean): () => void {
   const scrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
@@ -92,6 +97,74 @@ describe("DataTable", () => {
       await waitFor(() => {
         expectTooltipContent(longText);
       });
+    } finally {
+      restoreOverflow();
+    }
+  });
+
+  it("exposes full long IDs, commands, paths, and reasons through tooltip content", async () => {
+    const restoreOverflow = mockElementOverflow(true);
+    const longReason = "这是一段很长的判断依据，需要被截断但仍可查看完整内容。";
+
+    try {
+      render(
+        <ConfigProvider locale={zhCN}>
+          <DataTable
+            columns={[
+              { key: "approvalId", label: "审批" },
+              { key: "operation", label: "命令 / 操作" },
+              { key: "path", label: "路径" },
+              { key: "reason", label: "原因" },
+            ]}
+            rows={[{
+              id: longApprovalId,
+              approvalId: longApprovalId,
+              operation: longCommand,
+              path: longReportPath,
+              reason: longReason,
+            }]}
+          />
+        </ConfigProvider>,
+      );
+
+      for (const text of [longApprovalId, longCommand, longReportPath, longReason]) {
+        fireEvent.mouseEnter(screen.getByText(text));
+        await waitFor(() => {
+          expectTooltipContent(text);
+        });
+      }
+    } finally {
+      restoreOverflow();
+    }
+  });
+
+  it("leaves custom JSX cells under page ownership instead of wrapping them in primitive tooltips", () => {
+    const restoreOverflow = mockElementOverflow(true);
+
+    try {
+      render(
+        <ConfigProvider locale={zhCN}>
+          <DataTable
+            columns={[{ key: "detail", label: "详情" }]}
+            rows={[{
+              id: "row-1",
+              detail: (
+                <button title={longCommand} type="button">
+                  查看详情
+                </button>
+              ),
+            }]}
+          />
+        </ConfigProvider>,
+      );
+
+      const button = screen.getByRole("button");
+
+      expect(button).toHaveAttribute("title", longCommand);
+
+      fireEvent.mouseEnter(button);
+
+      expect(document.querySelector(".table-cell-tooltip")).toBeNull();
     } finally {
       restoreOverflow();
     }
