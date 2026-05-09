@@ -60,6 +60,14 @@ function expectTableFitsDefaultContentWidth(container: HTMLElement): void {
   expect(minWidth).toBeLessThanOrEqual(1136);
 }
 
+async function chooseSelectOptions(name: string, optionTexts: string[]) {
+  for (const optionText of optionTexts) {
+    fireEvent.mouseDown(screen.getByRole("combobox", { name }));
+    const matches = await screen.findAllByText(optionText);
+    fireEvent.click(matches.at(-1)!);
+  }
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -114,6 +122,12 @@ describe("DecisionsPage tone mapping", () => {
     fireEvent.click(within(row!).getByRole("button", { name: "查看 decision-evidence-1 裁决详情" }));
 
     expect(screen.getByRole("dialog", { name: "裁决详情" })).toBeInTheDocument();
+    expect(screen.getByText("判断依据")).toBeInTheDocument();
+    expect(screen.getByText("命中规则")).toBeInTheDocument();
+    expect(screen.getByText("证据状态")).toBeInTheDocument();
+    expect(screen.getByText("评分明细")).toBeInTheDocument();
+    expect(screen.queryByText("Matched Rules")).not.toBeInTheDocument();
+    expect(screen.queryByText("Score Breakdown")).not.toBeInTheDocument();
     expect(screen.getByText("approval.bypass_phrase")).toBeInTheDocument();
     expect(screen.getByText("approval.bypass_phrase +30")).toBeInTheDocument();
     expect(screen.getByText("evidence_score")).toBeInTheDocument();
@@ -213,12 +227,15 @@ describe("DecisionsPage tone mapping", () => {
     fireEvent.change(screen.getByLabelText("关键词"), {
       target: { value: "approval" },
     });
+    await chooseSelectOptions("风险等级", ["L2 中危", "L4 严重"]);
+    await chooseSelectOptions("裁决阶段", ["输入", "工具"]);
+    await chooseSelectOptions("执行动作", ["告警", "阻断"]);
     fireEvent.click(screen.getByRole("button", { name: "应用筛选" }));
 
     await screen.findByText("decision-filtered");
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/lynx/decisions?q=approval&pageNum=1&pageSize=20");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/lynx/decisions?action=warn&action=deny&q=approval&riskLevel=L2&riskLevel=L4&stage=input&stage=tool&pageNum=1&pageSize=20");
   });
 });

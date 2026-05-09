@@ -17,8 +17,8 @@ type LynxChecksListQuery struct {
 	Limit           *int
 	Cursor          *string
 	Source          *string
-	Trigger         *string
-	Status          *string
+	Trigger         []string
+	Status          []string
 	MessageProvider *string
 }
 
@@ -58,8 +58,8 @@ func (r *LynxChecksRepository) List(query LynxChecksListQuery) (service.PageResp
 	filter.AppendRange("created_at", query.FromMs, query.ToMs)
 	filter.AppendEquals("session_key", query.SessionKey)
 	filter.AppendEquals("source", query.Source)
-	filter.AppendEquals("trigger", query.Trigger)
-	filter.AppendEquals("status", query.Status)
+	filter.AppendIn("trigger", query.Trigger)
+	filter.AppendIn("status", query.Status)
 	filter.AppendEquals("message_provider", query.MessageProvider)
 
 	total, err := countRows(r.db, "lynx_checks", filter)

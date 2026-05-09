@@ -5,6 +5,10 @@ import { buildQueryString, fetchJson } from "./client";
 export interface ChainSummary {
   chainId: string;
   sessionKey: string;
+  channelProfile?: string;
+  channelId?: string;
+  conversationId?: string;
+  status?: string;
   recentIdentity: string[];
   recentSensitive: string[];
   recentDenials: string[];
@@ -69,6 +73,10 @@ function normalizeChainSummary(item: ChainSummary): ChainSummary {
   const coveredPrompts = normalizeCoveredPrompts(item.coveredPrompts);
   return {
     ...item,
+    channelProfile: typeof item.channelProfile === "string" ? item.channelProfile : undefined,
+    channelId: typeof item.channelId === "string" ? item.channelId : undefined,
+    conversationId: typeof item.conversationId === "string" ? item.conversationId : undefined,
+    status: typeof item.status === "string" ? item.status : undefined,
     recentIdentity: normalizeStringArray(item.recentIdentity),
     recentSensitive: normalizeStringArray(item.recentSensitive),
     recentDenials: normalizeStringArray(item.recentDenials),

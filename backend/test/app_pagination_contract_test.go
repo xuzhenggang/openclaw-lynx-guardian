@@ -98,6 +98,47 @@ func TestKeywordFiltersWorkForPagedTableRoutes(t *testing.T) {
 	}
 }
 
+func TestToolCallsRepeatedResultStatusFilters(t *testing.T) {
+	handler, closer := buildParityHandler(t)
+	t.Cleanup(func() {
+		if err := closer(); err != nil {
+			t.Fatalf("closer returned error: %v", err)
+		}
+	})
+
+	seed := doJSON(t, handler, http.MethodPost, "/lynx/internal/v1/ingest/batch", fixtureBatch("tool-call-status-multi"), true)
+	decodeObjectStatus(t, seed, http.StatusOK)
+
+	repeated := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/tool-calls?resultStatus=approved&resultStatus=completed&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	expectNumber(t, repeated, "total", 2)
+
+	comma := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/tool-calls?resultStatus=approved,completed&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	expectNumber(t, comma, "total", 2)
+}
+
+func TestToolCallListExposesOperationDisplayFields(t *testing.T) {
+	handler, closer := buildParityHandler(t)
+	t.Cleanup(func() {
+		if err := closer(); err != nil {
+			t.Fatalf("closer returned error: %v", err)
+		}
+	})
+
+	seed := doJSON(t, handler, http.MethodPost, "/lynx/internal/v1/ingest/batch", fixtureBatch("tool-call-list-operation"), true)
+	decodeObjectStatus(t, seed, http.StatusOK)
+
+	body := decodeObjectStatus(t, doJSON(t, handler, http.MethodGet, "/lynx/tool-calls?q=git%20status&pageNum=1&pageSize=20", nil, false), http.StatusOK)
+	items := pageItems(t, body)
+	if len(items) != 1 {
+		t.Fatalf("expected one tool call item, got %#v", items)
+	}
+	expectString(t, items[0], "toolCallId", "tool-call-approval")
+	expectString(t, items[0], "paramSummary", "command=git status")
+	if _, ok := items[0]["metadataJson"].(map[string]any); !ok {
+		t.Fatalf("expected list item metadataJson object, got %#v", items[0]["metadataJson"])
+	}
+}
+
 func TestTokenSummarySeparatesActualEstimatedAndUnavailableUsage(t *testing.T) {
 	handler, closer := buildParityHandler(t)
 	t.Cleanup(func() {

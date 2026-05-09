@@ -163,8 +163,10 @@ export interface ToolCallListItemDto {
   startedAtMs: number;
   finishedAtMs?: number;
   durationMs?: number;
+  paramSummary?: string;
   resultStatus?: string;
   resultExcerpt?: string;
+  metadataJson?: Record<string, unknown>;
 }
 
 export type ToolCallListResponse = PageResponse<ToolCallListItemDto>;
@@ -187,7 +189,6 @@ export interface DecisionReplayMetadataDto {
 }
 
 export interface ToolCallDetailDto extends ToolCallListItemDto {
-  paramSummary?: string;
   paramHash?: string;
   triggeredModules?: string[];
   errorText?: string;

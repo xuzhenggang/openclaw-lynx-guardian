@@ -135,6 +135,20 @@ function renderQaRecordsPage() {
   );
 }
 
+async function chooseSelectOptions(name: string, optionTexts: string[]) {
+  for (const optionText of optionTexts) {
+    fireEvent.mouseDown(screen.getByRole("combobox", { name }));
+    const matches = await screen.findAllByText(optionText);
+    fireEvent.click(matches.at(-1)!);
+  }
+}
+
+async function openQaDetail(): Promise<HTMLElement> {
+  await screen.findByText("qa-1");
+  fireEvent.click(screen.getByRole("button", { name: "查看 qa-1 问答详情" }));
+  return screen.findByRole("dialog", { name: "问答详情" });
+}
+
 describe("QaRecordsPage", () => {
   const fetchMock = vi.fn<typeof fetch>();
 
@@ -149,6 +163,15 @@ describe("QaRecordsPage", () => {
         return createJsonResponse(createQaSummary());
       }
       if (url === "/lynx/qa-records/summary?q=danger") {
+        return createJsonResponse(createQaSummary({
+          total: 4,
+          toolCallCount: 8,
+          approvalCount: 2,
+          detectionCount: 3,
+          totalTokens: 340,
+        }));
+      }
+      if (url.startsWith("/lynx/qa-records/summary") && url.includes("q=danger")) {
         return createJsonResponse(createQaSummary({
           total: 4,
           toolCallCount: 8,
@@ -203,16 +226,30 @@ describe("QaRecordsPage", () => {
     expect(screen.getByRole("columnheader", { name: "时间" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "问答 ID" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "用户输入" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "详情" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看 qa-1 问答详情" })).toBeInTheDocument();
     expect(screen.getByText("请运行测试")).toBeInTheDocument();
+  });
+
+  it("keeps row clicks inert and uses the detail column as the only drawer entry", async () => {
+    renderQaRecordsPage();
+
+    await screen.findByText("qa-1");
+    const qaRow = screen.getByRole("row", { name: /qa-1.*请运行测试/ });
+
+    expect(qaRow).not.toHaveClass("data-table__row--clickable");
+    fireEvent.click(qaRow);
+    expect(screen.queryByRole("dialog", { name: "问答详情" })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.map((call) => call[0])).not.toContain("/lynx/qa-records/qa-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 qa-1 问答详情" }));
+    expect(await screen.findByRole("dialog", { name: "问答详情" })).toBeInTheDocument();
   });
 
   it("shows the display chain by default when QA detail loads", async () => {
     renderQaRecordsPage();
 
-    await screen.findByText("qa-1");
-    fireEvent.click(screen.getByRole("row", { name: /qa-1.*请运行测试/ }));
-
-    const drawer = await screen.findByRole("dialog", { name: "问答详情" });
+    const drawer = await openQaDetail();
     expect(drawer).toHaveClass("side-drawer--wide");
     expect(await within(drawer).findByTestId("qa-display-chain")).toBeInTheDocument();
     expect(within(drawer).getByText("输入检查")).toBeInTheDocument();
@@ -224,10 +261,7 @@ describe("QaRecordsPage", () => {
   it("closes the QA detail drawer when its backdrop is clicked", async () => {
     renderQaRecordsPage();
 
-    await screen.findByText("qa-1");
-    fireEvent.click(screen.getByRole("row", { name: /qa-1.*请运行测试/ }));
-
-    const drawer = await screen.findByRole("dialog", { name: "问答详情" });
+    const drawer = await openQaDetail();
     expect(drawer).toBeInTheDocument();
     const backdrop = document.querySelector(".side-drawer-backdrop");
     expect(backdrop).not.toBeNull();
@@ -241,9 +275,7 @@ describe("QaRecordsPage", () => {
   it("expands a clicked node inside that node card and does not render the old bottom detail panel", async () => {
     renderQaRecordsPage();
 
-    await screen.findByText("qa-1");
-    fireEvent.click(screen.getByRole("row", { name: /qa-1.*请运行测试/ }));
-    const drawer = await screen.findByRole("dialog", { name: "问答详情" });
+    const drawer = await openQaDetail();
 
     fireEvent.click(await within(drawer).findByRole("button", { name: /工具调用检查/ }));
 
@@ -258,9 +290,7 @@ describe("QaRecordsPage", () => {
   it("shows related raw audit events in a secondary dialog", async () => {
     renderQaRecordsPage();
 
-    await screen.findByText("qa-1");
-    fireEvent.click(screen.getByRole("row", { name: /qa-1.*请运行测试/ }));
-    await screen.findByRole("dialog", { name: "问答详情" });
+    await openQaDetail();
 
     fireEvent.click(screen.getByRole("button", { name: "查看关联审计事件" }));
 
@@ -276,17 +306,45 @@ describe("QaRecordsPage", () => {
     fireEvent.change(screen.getByLabelText("关键词"), {
       target: { value: "danger" },
     });
+    await chooseSelectOptions("状态", ["已完成", "失败"]);
+    await chooseSelectOptions("风险等级", ["L2 中危", "L4 严重"]);
     fireEvent.click(screen.getByRole("button", { name: "应用筛选" }));
 
     await screen.findByText("qa-filtered");
     await waitFor(() => {
       expect(fetchMock.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining([
-        "/lynx/qa-records/summary?q=danger",
-        "/lynx/qa-records?q=danger&pageNum=1&pageSize=20",
+        "/lynx/qa-records/summary?q=danger&riskLevel=L2&riskLevel=L4&status=completed&status=failed",
+        "/lynx/qa-records?q=danger&riskLevel=L2&riskLevel=L4&status=completed&status=failed&pageNum=1&pageSize=20",
       ]));
     });
     const totalCard = screen.getByText("问答总数").closest(".metric-card");
     expect(totalCard).not.toBeNull();
     expect(within(totalCard!).getByText("4")).toBeInTheDocument();
+  });
+
+  it("shows a durable missing-answer fallback for completed records without a saved final answer", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/lynx/qa-records/qa-1") {
+        return createJsonResponse(createQaDetail({ finalAnswerExcerpt: undefined }));
+      }
+      if (url === "/lynx/qa-records/summary") {
+        return createJsonResponse(createQaSummary());
+      }
+      return createJsonResponse({
+        items: [createQaRecord({ finalAnswerExcerpt: undefined })],
+        total: 1,
+        pageNum: 1,
+        pageSize: 20,
+        totalPages: 1,
+      });
+    });
+
+    renderQaRecordsPage();
+
+    const drawer = await openQaDetail();
+
+    expect(within(drawer).getByText("历史记录未保存最终答复")).toBeInTheDocument();
+    expect(within(drawer).queryByText("正在加载")).not.toBeInTheDocument();
   });
 });

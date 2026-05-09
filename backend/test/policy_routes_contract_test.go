@@ -166,6 +166,104 @@ func TestPolicyRoutesUpdateExistingProtectedResourceAndRuleById(t *testing.T) {
 	}
 }
 
+func TestPolicyRoutesListProtectedResourcesWithPaginationAndFilters(t *testing.T) {
+	router, closer := buildTestHandler(t)
+	defer closer()
+
+	policyPostJSON(t, router, "/lynx/protected-resources", map[string]any{
+		"path":          "C:\\Users\\alice\\Secrets",
+		"preset":        "read_only",
+		"enabled":       true,
+		"actorId":       "alice",
+		"changeSummary": "protect local secrets",
+	})
+	policyPostJSON(t, router, "/lynx/protected-resources", map[string]any{
+		"path":          "D:\\Project\\Archive",
+		"preset":        "no_delete",
+		"enabled":       false,
+		"actorId":       "alice",
+		"changeSummary": "track disabled archive policy",
+	})
+
+	page := decodeObjectStatus(t, policyGetJSON(t, router, "/lynx/protected-resources?pageNum=1&pageSize=1"), http.StatusOK)
+	expectNumber(t, page, "total", 2)
+	expectNumber(t, page, "pageNum", 1)
+	expectNumber(t, page, "pageSize", 1)
+	expectNumber(t, page, "totalPages", 2)
+	if items := pageItems(t, page); len(items) != 1 {
+		t.Fatalf("expected one protected resource on the first page, got %#v", items)
+	}
+
+	filtered := decodeObjectStatus(t, policyGetJSON(t, router, "/lynx/protected-resources?q=Secrets&enabled=true&pageNum=1&pageSize=20"), http.StatusOK)
+	expectNumber(t, filtered, "total", 1)
+	items := pageItems(t, filtered)
+	if len(items) != 1 {
+		t.Fatalf("expected one filtered protected resource, got %#v", items)
+	}
+	expectString(t, items[0], "path", "C:\\Users\\alice\\Secrets")
+}
+
+func TestPolicyRoutesListPolicyRulesWithPaginationKindAndFilters(t *testing.T) {
+	router, closer := buildTestHandler(t)
+	defer closer()
+
+	policyPostJSON(t, router, "/lynx/policy-rules", map[string]any{
+		"kind":          "blacklist",
+		"scope":         "script",
+		"patternType":   "literal",
+		"pattern":       "Invoke-Expression",
+		"riskDelta":     70,
+		"enabled":       true,
+		"actorId":       "alice",
+		"changeSummary": "flag powershell dynamic execution",
+	})
+	policyPostJSON(t, router, "/lynx/policy-rules", map[string]any{
+		"kind":          "blacklist",
+		"scope":         "tool",
+		"patternType":   "regex",
+		"pattern":       "curl\\s+http://",
+		"riskDelta":     50,
+		"enabled":       false,
+		"actorId":       "alice",
+		"changeSummary": "track disabled network rule",
+	})
+	policyPostJSON(t, router, "/lynx/policy-rules", map[string]any{
+		"kind":          "allowlist",
+		"scope":         "tool",
+		"patternType":   "literal",
+		"pattern":       "npm test",
+		"riskDelta":     -15,
+		"enabled":       true,
+		"actorId":       "alice",
+		"changeSummary": "allow local test command",
+	})
+
+	blacklistPage := decodeObjectStatus(t, policyGetJSON(t, router, "/lynx/policy-rules?kind=blacklist&pageNum=1&pageSize=1"), http.StatusOK)
+	expectNumber(t, blacklistPage, "total", 2)
+	expectNumber(t, blacklistPage, "pageNum", 1)
+	expectNumber(t, blacklistPage, "pageSize", 1)
+	expectNumber(t, blacklistPage, "totalPages", 2)
+	if items := pageItems(t, blacklistPage); len(items) != 1 {
+		t.Fatalf("expected one blacklist rule on the first page, got %#v", items)
+	}
+
+	allowlistPage := decodeObjectStatus(t, policyGetJSON(t, router, "/lynx/policy-rules?kind=allowlist&pageNum=1&pageSize=20"), http.StatusOK)
+	expectNumber(t, allowlistPage, "total", 1)
+	allowlistItems := pageItems(t, allowlistPage)
+	if len(allowlistItems) != 1 {
+		t.Fatalf("expected one allowlist rule, got %#v", allowlistItems)
+	}
+	expectString(t, allowlistItems[0], "pattern", "npm test")
+
+	filtered := decodeObjectStatus(t, policyGetJSON(t, router, "/lynx/policy-rules?kind=blacklist&scope=tool&patternType=regex&enabled=false&q=curl&pageNum=1&pageSize=20"), http.StatusOK)
+	expectNumber(t, filtered, "total", 1)
+	filteredItems := pageItems(t, filtered)
+	if len(filteredItems) != 1 {
+		t.Fatalf("expected one filtered policy rule, got %#v", filteredItems)
+	}
+	expectString(t, filteredItems[0], "pattern", "curl\\s+http://")
+}
+
 func policyPostJSON(t *testing.T, router http.Handler, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	data, err := json.Marshal(body)

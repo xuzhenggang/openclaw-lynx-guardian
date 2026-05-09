@@ -33,7 +33,7 @@ function createSecurityEvent(overrides: Record<string, unknown> = {}) {
     contentExcerpt: "Remove-Item -Recurse C:\\important",
     occurredAtMs: 1_776_945_600_000,
     riskLevel: "L4",
-    riskScore: 10,
+    riskScore: 80,
     policyDecision: "deny",
     enforcementAction: "block",
     rawAuditEventIds: ["event-1", "event-2"],
@@ -41,6 +41,16 @@ function createSecurityEvent(overrides: Record<string, unknown> = {}) {
     detailJson: {
       command: "Remove-Item -Recurse C:\\important",
       cwd: "C:\\repo",
+      matchedModules: ["SAFE_EXEC"],
+      matchedRules: ["tool.dangerous_delete"],
+      scoreBreakdown: [
+        {
+          ruleId: "tool.dangerous_delete",
+          delta: 80,
+          reason: "递归删除重要目录",
+        },
+      ],
+      evidence: ["命令包含递归删除和重要路径"],
     },
     ...overrides,
   };
@@ -120,6 +130,12 @@ async function chooseSelectOption(name: string, optionText: string) {
   fireEvent.click(matches.at(-1)!);
 }
 
+async function chooseSelectOptions(name: string, optionTexts: string[]) {
+  for (const optionText of optionTexts) {
+    await chooseSelectOption(name, optionText);
+  }
+}
+
 describe("EventsPage", () => {
   const fetchMock = vi.fn<typeof fetch>();
 
@@ -160,12 +176,15 @@ describe("EventsPage", () => {
             eventId: "security:input:qa-1",
             eventKind: "input",
             title: "输入检查",
-            objectLabel: "请检查当前项目",
-            contentExcerpt: "请检查当前项目",
+            objectLabel: "OpenClaw guard policy: classify this request",
+            contentExcerpt: "system: hidden guard context",
             riskLevel: "L0",
             enforcementAction: "allow",
             rawAuditEventIds: [],
             rawAuditCount: 0,
+            detailJson: {
+              userPromptExcerpt: "请检查当前项目",
+            },
           }),
         ], 1, 10, 42));
       }
@@ -206,12 +225,20 @@ describe("EventsPage", () => {
     expect(screen.getByText("工具调用检查")).toBeInTheDocument();
     expect(screen.getByText("工具")).toBeInTheDocument();
     expect(screen.getByText("会话")).toBeInTheDocument();
+    expect(screen.getByText("请检查当前项目")).toBeInTheDocument();
+    expect(screen.queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/system: hidden guard context/)).not.toBeInTheDocument();
     expect(screen.getByText("2 条")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "查看 security:tool:tool-1 详情" }));
     const dialog = await screen.findByRole("dialog", { name: "工具调用检查" });
     expect(within(dialog).getByText("事件概览")).toBeInTheDocument();
     expect(within(dialog).getByText("基础信息")).toBeInTheDocument();
+    expect(within(dialog).getByText("判断依据")).toBeInTheDocument();
+    expect(within(dialog).getByText("tool.dangerous_delete")).toBeInTheDocument();
+    expect(within(dialog).getByText("SAFE_EXEC")).toBeInTheDocument();
+    expect(within(dialog).getByText("80")).toBeInTheDocument();
+    expect(within(dialog).getByText("命令包含递归删除和重要路径")).toBeInTheDocument();
     expect(within(dialog).getByText("原始证据")).toBeInTheDocument();
     expect(within(dialog).getByText("event-1")).toBeInTheDocument();
     expect(fetchMock.mock.calls.map((call) => call[0])).toContain("/lynx/security-events/security%3Atool%3Atool-1");
@@ -226,13 +253,13 @@ describe("EventsPage", () => {
       if (url === "/lynx/security-events?pageNum=1&pageSize=10") {
         return createJsonResponse(createPage([createSecurityEvent()], 1, 10, 1));
       }
-      if (url === "/lynx/security-events/summary?q=exec&riskLevel=L4&eventKind=output") {
+      if (url === "/lynx/security-events/summary?q=exec&riskLevel=L3&riskLevel=L4&eventKind=input&eventKind=output") {
         return createJsonResponse(createSecurityEventSummary({
           total: 9,
           riskCounts: { L0: 0, L1: 0, L2: 0, L3: 0, L4: 9 },
         }));
       }
-      if (url === "/lynx/security-events?q=exec&riskLevel=L4&eventKind=output&pageNum=1&pageSize=10") {
+      if (url === "/lynx/security-events?q=exec&riskLevel=L3&riskLevel=L4&eventKind=input&eventKind=output&pageNum=1&pageSize=10") {
         return createJsonResponse(createPage([
           createSecurityEvent({ eventId: "security:output:qa-2", eventKind: "output", title: "输出检查" }),
         ], 1, 10, 9));
@@ -246,15 +273,15 @@ describe("EventsPage", () => {
     fireEvent.change(screen.getByLabelText("关键词"), {
       target: { value: "exec" },
     });
-    await chooseSelectOption("风险等级", "L4 严重");
-    await chooseSelectOption("事件类型", "输出");
+    await chooseSelectOptions("风险等级", ["L3 高危", "L4 严重"]);
+    await chooseSelectOptions("事件类型", ["输入", "输出"]);
     fireEvent.click(screen.getByRole("button", { name: "应用筛选" }));
 
     await screen.findByText("security:output:qa-2");
     await waitFor(() => {
       expect(fetchMock.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining([
-        "/lynx/security-events/summary?q=exec&riskLevel=L4&eventKind=output",
-        "/lynx/security-events?q=exec&riskLevel=L4&eventKind=output&pageNum=1&pageSize=10",
+        "/lynx/security-events/summary?q=exec&riskLevel=L3&riskLevel=L4&eventKind=input&eventKind=output",
+        "/lynx/security-events?q=exec&riskLevel=L3&riskLevel=L4&eventKind=input&eventKind=output&pageNum=1&pageSize=10",
       ]));
     });
     const summary = screen.getByLabelText("当前筛选安全事件概览");

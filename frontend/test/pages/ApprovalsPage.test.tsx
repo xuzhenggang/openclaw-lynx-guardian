@@ -151,6 +151,21 @@ describe("ApprovalsPage", () => {
     expect(within(approvalRow!).getByText(/硬拒绝/)).toBeInTheDocument();
   });
 
+  it("compacts long approval IDs in the table while preserving the full ID for actions", async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(createPage([
+      {
+        ...createApproval(),
+        approvalId: "approval-1234567890abcdef",
+      },
+    ])));
+
+    render(<ApprovalsPage />);
+
+    expect(await screen.findByText("approval-...cdef")).toBeInTheDocument();
+    expect(screen.queryByText("approval-1234567890abcdef")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看 approval-1234567890abcdef 审批详情" })).toBeInTheDocument();
+  });
+
   it("uses real filters and keeps grant internals in the detail dialog", async () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse(createPage([createApproval()], 1, 20, 41)))

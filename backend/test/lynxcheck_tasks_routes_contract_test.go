@@ -82,6 +82,36 @@ func TestLynxCheckTaskScheduledUsesSameTable(t *testing.T) {
 	assertLynxField(t, item, "status", "created")
 }
 
+func TestLynxCheckTaskListUsesRepeatedStatusAndTriggerFilters(t *testing.T) {
+	router := setupLynxCheckTaskRouter(t)
+
+	postLynxJSON(t, router, http.MethodPost, "/lynx/internal/v1/tasks/lynx-check/start", map[string]any{
+		"requestId": "manual-created",
+		"trigger":   "manual",
+		"source":    "lynx_command",
+	})
+	postLynxJSON(t, router, http.MethodPost, "/lynx/internal/v1/tasks/lynx-check/start", map[string]any{
+		"requestId": "scheduled-created",
+		"trigger":   "scheduled",
+		"source":    "scheduled_lynx_check",
+	})
+	postLynxJSON(t, router, http.MethodPost, "/lynx/internal/v1/tasks/lynx-check/start", map[string]any{
+		"requestId": "command-failed",
+		"trigger":   "lynx_command",
+		"source":    "lynx_command",
+	})
+	postLynxJSON(t, router, http.MethodPost, "/lynx/internal/v1/tasks/lynx-check/command-failed/event", map[string]any{
+		"status":       "failed",
+		"errorMessage": "expected failure",
+	})
+
+	repeated := getLynxJSON(t, router, "/lynx/lynx-checks?trigger=manual&trigger=scheduled&status=created&status=failed")
+	expectNumber(t, repeated, "total", 3)
+
+	comma := getLynxJSON(t, router, "/lynx/lynx-checks?trigger=manual,scheduled&status=created,failed")
+	expectNumber(t, comma, "total", 3)
+}
+
 func TestLynxCheckTaskFailedEventRecordsError(t *testing.T) {
 	router := setupLynxCheckTaskRouter(t)
 

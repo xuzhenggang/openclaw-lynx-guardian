@@ -18,7 +18,7 @@ func RegisterQARecords(router gin.IRoutes, repository *repo.QARecordsRepository)
 			FromMs:     httpserver.ReadInt64(values, "fromMs"),
 			ToMs:       httpserver.ReadInt64(values, "toMs"),
 			RiskLevel:  httpserver.ReadStringSlice(values, "riskLevel"),
-			Status:     httpserver.ReadString(values, "status"),
+			Status:     httpserver.ReadStringSlice(values, "status"),
 			PageNum:    httpserver.ReadInt(values, "pageNum"),
 			PageSize:   httpserver.ReadInt(values, "pageSize"),
 			Limit:      httpserver.ReadInt(values, "limit"),
@@ -39,7 +39,7 @@ func RegisterQARecords(router gin.IRoutes, repository *repo.QARecordsRepository)
 			FromMs:     httpserver.ReadInt64(values, "fromMs"),
 			ToMs:       httpserver.ReadInt64(values, "toMs"),
 			RiskLevel:  httpserver.ReadStringSlice(values, "riskLevel"),
-			Status:     httpserver.ReadString(values, "status"),
+			Status:     httpserver.ReadStringSlice(values, "status"),
 		})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})

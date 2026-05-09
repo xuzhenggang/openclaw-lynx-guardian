@@ -541,11 +541,13 @@ func TestChainListFiltersAndPaginates(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("expected one chain on first page, got %#v", items)
 	}
+	expectString(t, items[0], "channelProfile", "webchat")
 
 	filtered := decodeObjectStatus(t, doJSON(t, router, http.MethodGet, "/lynx/chains?q=requester-beta&pageNum=1&pageSize=20", nil, false), http.StatusOK)
 	expectNumber(t, filtered, "total", 1)
 	filteredItems := pageItems(t, filtered)
 	expectString(t, filteredItems[0], "chainId", "chain-webchat-beta")
+	expectString(t, filteredItems[0], "channelProfile", "webchat")
 }
 
 func TestChainSummaryClearsPendingApprovalAfterGrantResolution(t *testing.T) {

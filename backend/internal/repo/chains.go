@@ -95,12 +95,19 @@ func (r *ChainRepository) AppendEvent(ctx context.Context, input api.ChainUpdate
 
 func (r *ChainRepository) Get(ctx context.Context, chainID string) (api.ChainSummary, error) {
 	var summaryJSON string
+	var channelProfile string
+	var channelID string
+	var conversationID string
 	err := r.db.QueryRowContext(ctx, `
-		SELECT summary_json
+		SELECT
+			summary_json,
+			COALESCE(channel_profile, ''),
+			COALESCE(channel_id, ''),
+			COALESCE(conversation_id, '')
 		FROM chains
 		WHERE chain_id = ?`,
 		chainID,
-	).Scan(&summaryJSON)
+	).Scan(&summaryJSON, &channelProfile, &channelID, &conversationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return api.ChainSummary{}, nil
 	}
@@ -109,6 +116,7 @@ func (r *ChainRepository) Get(ctx context.Context, chainID string) (api.ChainSum
 	}
 	var summary api.ChainSummary
 	unmarshalJSONText(summaryJSON, &summary)
+	applyChainRouteMetadata(&summary, channelProfile, channelID, conversationID)
 	normalizeChainSummary(&summary)
 	if err := r.loadPromptCoverage(ctx, &summary); err != nil {
 		return api.ChainSummary{}, err
@@ -143,7 +151,11 @@ func (r *ChainRepository) List(ctx context.Context, query ChainListQuery) (servi
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT summary_json
+		SELECT
+			summary_json,
+			COALESCE(channel_profile, ''),
+			COALESCE(channel_id, ''),
+			COALESCE(conversation_id, '')
 		FROM chains `+filter.Where()+`
 		ORDER BY updated_at DESC, chain_id DESC
 		LIMIT ? OFFSET ?`,
@@ -157,11 +169,15 @@ func (r *ChainRepository) List(ctx context.Context, query ChainListQuery) (servi
 	out := make([]api.ChainSummary, 0)
 	for rows.Next() {
 		var summaryJSON string
-		if err := rows.Scan(&summaryJSON); err != nil {
+		var channelProfile string
+		var channelID string
+		var conversationID string
+		if err := rows.Scan(&summaryJSON, &channelProfile, &channelID, &conversationID); err != nil {
 			return service.PageResponse[api.ChainSummary]{}, err
 		}
 		var summary api.ChainSummary
 		unmarshalJSONText(summaryJSON, &summary)
+		applyChainRouteMetadata(&summary, channelProfile, channelID, conversationID)
 		normalizeChainSummary(&summary)
 		out = append(out, summary)
 	}
@@ -174,6 +190,12 @@ func (r *ChainRepository) List(ctx context.Context, query ChainListQuery) (servi
 		}
 	}
 	return service.BuildPageResponse(out, total, page), nil
+}
+
+func applyChainRouteMetadata(summary *api.ChainSummary, channelProfile string, channelID string, conversationID string) {
+	summary.ChannelProfile = channelProfile
+	summary.ChannelID = channelID
+	summary.ConversationID = conversationID
 }
 
 func normalizeChainSummary(summary *api.ChainSummary) {

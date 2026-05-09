@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PoliciesPage } from "../../src/pages/PoliciesPage";
@@ -8,25 +8,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function stubPolicyOverview(fetchMock?: ReturnType<typeof vi.fn>) {
+function page<T>(items: T[], total = items.length) {
+  return {
+    items,
+    total,
+    pageNum: 1,
+    pageSize: 20,
+    totalPages: total === 0 ? 0 : Math.ceil(total / 20),
+  };
+}
+
+const protectedResource = {
+  resourceId: "resource-1",
+  version: 9,
+  path: "C:\\Users\\alice\\Secrets",
+  preset: "read_only",
+  enabled: true,
+  createdBy: "alice",
+  createdAtMs: 1710000000000,
+  updatedAtMs: 1710000000000,
+};
+
+const blacklistRule = {
+  ruleId: "rule-black",
+  version: 8,
+  kind: "blacklist",
+  scope: "script",
+  patternType: "literal",
+  pattern: "Invoke-Expression",
+  riskDelta: 70,
+  enabled: true,
+  createdBy: "alice",
+  createdAtMs: 1710000000000,
+  updatedAtMs: 1710000000000,
+};
+
+const allowlistRule = {
+  ruleId: "rule-allow",
+  version: 9,
+  kind: "allowlist",
+  scope: "tool",
+  patternType: "literal",
+  pattern: "npm test",
+  riskDelta: -15,
+  enabled: true,
+  createdBy: "alice",
+  createdAtMs: 1710000000000,
+  updatedAtMs: 1710000000000,
+};
+
+function stubPolicyEndpoints(fetchMock?: ReturnType<typeof vi.fn>) {
   const mock = fetchMock ?? vi.fn();
-  mock.mockImplementation(async (_url: string, init?: RequestInit) => {
+  mock.mockImplementation(async (url: string, init?: RequestInit) => {
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
-      if (String(_url).includes("/protected-resources")) {
+      if (String(url).includes("/protected-resources")) {
         return Response.json({
+          ...protectedResource,
           resourceId: body.resourceId ?? "resource-created",
           version: 10,
           path: body.path,
           preset: body.preset,
           enabled: body.enabled,
           createdBy: body.actorId,
-          createdAtMs: 1710000000000,
-          updatedAtMs: 1710000000000,
         });
       }
 
       return Response.json({
+        ...(body.kind === "allowlist" ? allowlistRule : blacklistRule),
         ruleId: body.ruleId ?? `rule-${body.kind}`,
         version: 11,
         kind: body.kind,
@@ -36,54 +85,28 @@ function stubPolicyOverview(fetchMock?: ReturnType<typeof vi.fn>) {
         riskDelta: body.riskDelta,
         enabled: body.enabled,
         createdBy: body.actorId,
-        createdAtMs: 1710000000000,
-        updatedAtMs: 1710000000000,
       });
     }
 
-    return Response.json({
-      currentVersion: 9,
-      protectedResources: [
-        {
-          resourceId: "resource-1",
-          version: 9,
-          path: "C:\\Users\\alice\\Secrets",
-          preset: "read_only",
-          enabled: true,
-          createdBy: "alice",
-          createdAtMs: 1710000000000,
-          updatedAtMs: 1710000000000,
-        },
-      ],
-      rules: [
-        {
-          ruleId: "rule-black",
-          version: 8,
-          kind: "blacklist",
-          scope: "script",
-          patternType: "literal",
-          pattern: "Invoke-Expression",
-          riskDelta: 70,
-          enabled: true,
-          createdBy: "alice",
-          createdAtMs: 1710000000000,
-          updatedAtMs: 1710000000000,
-        },
-        {
-          ruleId: "rule-allow",
-          version: 9,
-          kind: "allowlist",
-          scope: "tool",
-          patternType: "literal",
-          pattern: "npm test",
-          riskDelta: -15,
-          enabled: true,
-          createdBy: "alice",
-          createdAtMs: 1710000000000,
-          updatedAtMs: 1710000000000,
-        },
-      ],
-    });
+    const requestUrl = new URL(String(url), "http://localhost");
+    if (requestUrl.pathname.endsWith("/policies")) {
+      return Response.json({
+        currentVersion: 9,
+        protectedResources: [protectedResource],
+        rules: [blacklistRule, allowlistRule],
+      });
+    }
+    if (requestUrl.pathname.endsWith("/protected-resources")) {
+      return Response.json(page([protectedResource]));
+    }
+    if (requestUrl.pathname.endsWith("/policy-rules") && requestUrl.searchParams.get("kind") === "blacklist") {
+      return Response.json(page([blacklistRule]));
+    }
+    if (requestUrl.pathname.endsWith("/policy-rules") && requestUrl.searchParams.get("kind") === "allowlist") {
+      return Response.json(page([allowlistRule]));
+    }
+
+    return Response.json(page([]));
   });
 
   vi.stubGlobal("fetch", mock as unknown as typeof fetch);
@@ -91,36 +114,59 @@ function stubPolicyOverview(fetchMock?: ReturnType<typeof vi.fn>) {
 }
 
 describe("PoliciesPage", () => {
-  it("renders directory protection, blacklist, and allowlist as separate modules", async () => {
-    stubPolicyOverview();
+  it("loads paged policy lists and shows one full-width list at a time", async () => {
+    const fetchMock = stubPolicyEndpoints();
 
-    const { container } = render(<PoliciesPage />);
+    render(<PoliciesPage />);
 
-    expect(await screen.findByRole("heading", { name: "目录防护" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "黑名单" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "白名单" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "添加目录防护" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "添加黑名单" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "添加白名单" })).toBeInTheDocument();
-    expect(screen.queryByText("黑白名单规则")).not.toBeInTheDocument();
-    expect(screen.getByText("C:\\Users\\alice\\Secrets")).toBeInTheDocument();
-    expect(screen.getByText("Invoke-Expression")).toBeInTheDocument();
-    expect(screen.getByText("npm test")).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /执行/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "策略配置" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "目录防护" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "黑名单" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "白名单" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "目录防护列表" })).toBeInTheDocument();
+    expect(await screen.findByText("C:\\Users\\alice\\Secrets")).toBeInTheDocument();
+    expect(screen.queryByText("Invoke-Expression")).not.toBeInTheDocument();
+    expect(screen.queryByText("npm test")).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText("目录防护分页").length).toBeGreaterThan(0);
 
-    const metricLabels = [...container.querySelectorAll(".policy-metrics .metric-card__label")].map((element) => element.textContent);
-    expect(metricLabels).toEqual(["目录防护", "黑名单", "白名单", "总数"]);
-    expect(container.querySelector(".policy-metrics .summary-card")).toBeNull();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/policies"), undefined);
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/protected-resources?pageNum=1&pageSize=20"), undefined);
+    });
   });
 
-  it("opens independent modal add dialogs and sends the matching policy payloads", async () => {
-    const fetchMock = stubPolicyOverview();
+  it("switches the active list through tabs and requests the matching paged endpoint", async () => {
+    const fetchMock = stubPolicyEndpoints();
+
+    render(<PoliciesPage />);
+    await screen.findByText("C:\\Users\\alice\\Secrets");
+
+    fireEvent.click(screen.getByRole("tab", { name: "黑名单" }));
+    expect(await screen.findByRole("heading", { name: "黑名单列表" })).toBeInTheDocument();
+    expect(await screen.findByText("Invoke-Expression")).toBeInTheDocument();
+    expect(screen.queryByText("C:\\Users\\alice\\Secrets")).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText("黑名单分页").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: "白名单" }));
+    expect(await screen.findByRole("heading", { name: "白名单列表" })).toBeInTheDocument();
+    expect(await screen.findByText("npm test")).toBeInTheDocument();
+    expect(screen.queryByText("Invoke-Expression")).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText("白名单分页").length).toBeGreaterThan(0);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/policy-rules?kind=blacklist&pageNum=1&pageSize=20"), undefined);
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/policy-rules?kind=allowlist&pageNum=1&pageSize=20"), undefined);
+    });
+  });
+
+  it("opens add dialogs from the active list and sends the matching policy payloads", async () => {
+    const fetchMock = stubPolicyEndpoints();
 
     render(<PoliciesPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "添加目录防护" }));
     const resourceDialog = await screen.findByRole("dialog", { name: "添加目录防护" });
-    expect(resourceDialog.querySelector(".modal-dialog__close")).toBeInTheDocument();
+    expect(within(resourceDialog).getByText("目录路径")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("目录路径"), {
       target: { value: "D:\\Project\\Protected" },
     });
@@ -130,7 +176,8 @@ describe("PoliciesPage", () => {
       expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/protected-resources"), expect.objectContaining({ method: "POST" }));
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "添加黑名单" }));
+    fireEvent.click(screen.getByRole("tab", { name: "黑名单" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加黑名单" }));
     expect(await screen.findByRole("dialog", { name: "添加黑名单" })).toHaveClass("modal-dialog");
     fireEvent.change(screen.getByLabelText("黑名单匹配内容"), {
       target: { value: "curl http://evil.test" },
@@ -154,7 +201,8 @@ describe("PoliciesPage", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "添加白名单" }));
+    fireEvent.click(screen.getByRole("tab", { name: "白名单" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加白名单" }));
     expect(await screen.findByRole("dialog", { name: "添加白名单" })).toHaveClass("modal-dialog");
     fireEvent.change(screen.getByLabelText("白名单匹配内容"), {
       target: { value: "npm test" },
@@ -179,8 +227,8 @@ describe("PoliciesPage", () => {
     });
   });
 
-  it("opens edit modal dialogs with existing values and preserves policy ids in the upsert payload", async () => {
-    const fetchMock = stubPolicyOverview();
+  it("opens edit dialogs with existing values and preserves policy ids in the upsert payload", async () => {
+    const fetchMock = stubPolicyEndpoints();
 
     render(<PoliciesPage />);
 
@@ -201,6 +249,7 @@ describe("PoliciesPage", () => {
       );
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "黑名单" }));
     fireEvent.click(await screen.findByRole("button", { name: "修改黑名单 Invoke-Expression" }));
     expect(await screen.findByRole("dialog", { name: "修改黑名单" })).toHaveClass("modal-dialog");
     fireEvent.change(screen.getByLabelText("黑名单匹配内容"), {

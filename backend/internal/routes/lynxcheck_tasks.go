@@ -61,8 +61,8 @@ func RegisterLynxCheckTasks(
 			Limit:      httpserver.ReadInt(values, "limit"),
 			Cursor:     httpserver.ReadString(values, "cursor"),
 			Source:     httpserver.ReadString(values, "source"),
-			Trigger:    httpserver.ReadString(values, "trigger"),
-			Status:     httpserver.ReadString(values, "status"),
+			Trigger:    httpserver.ReadStringSlice(values, "trigger"),
+			Status:     httpserver.ReadStringSlice(values, "status"),
 		})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})

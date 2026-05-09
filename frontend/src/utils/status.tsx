@@ -102,7 +102,14 @@ function resolveActionTone(value: string | undefined): StatusBadgeProps["tone"] 
   if (value === "redact" || value === "requireApproval" || value === "require_approval" || value === "warn") {
     return "warning";
   }
-  if (value === "allow" || value === "log_only") {
+  if (
+    value === "allow"
+    || value === "allow_with_logging"
+    || value === "log_only"
+    || value === "logOnly"
+    || value === "success"
+    || value === "completed"
+  ) {
     return "success";
   }
   return "neutral";
@@ -165,16 +172,16 @@ function resolvePolicyTone(
 ): StatusBadgeProps["tone"] {
   const value = `${policyDecision ?? ""} ${fallbackAction ?? ""}`.toLowerCase();
 
-  if (/\b(block|deny|denied|reject|rejected|refuse|refused)\b/.test(value)) {
+  if (/(block|deny|denied|reject|rejected|refuse|refused)/.test(value)) {
     return "danger";
   }
-  if (/\b(confirm|approval|review|require|warn|warning)\b/.test(value)) {
+  if (/(confirm|approval|review|require|warn|warning)/.test(value)) {
     return "warning";
   }
-  if (/\b(redact|mask|sanitize|sensitive)\b/.test(value)) {
+  if (/(redact|mask|sanitize|sensitive)/.test(value)) {
     return "info";
   }
-  if (/\b(allow|pass|deliver|log)\b/.test(value)) {
+  if (/(allow|pass|deliver|log)/.test(value)) {
     return "success";
   }
 

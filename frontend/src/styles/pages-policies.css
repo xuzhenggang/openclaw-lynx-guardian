@@ -1,0 +1,42 @@
+.policy-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.policy-list-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  margin: 18px 20px 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--table-header-bg);
+}
+
+.policy-list-tab {
+  min-width: 96px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.policy-list-tab:hover,
+.policy-list-tab:focus-visible {
+  color: var(--text);
+  background: var(--panel);
+  outline: none;
+}
+
+.policy-list-tab--active {
+  color: var(--accent-strong);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}

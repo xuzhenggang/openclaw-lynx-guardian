@@ -1,3 +1,4 @@
+import type { PageResponse } from "@lynx/local-console-shared";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Button, Input } from "antd";
 
@@ -5,13 +6,19 @@ import {
   createPolicyRule,
   createProtectedResource,
   getPolicyOverview,
+  listPolicyRules,
+  listProtectedResources,
   type PolicyOverview,
   type PolicyRule,
+  type PolicyRuleListQuery,
   type ProtectedResource,
+  type ProtectedResourceListQuery,
 } from "../api/policies";
 import { ModalDialog } from "../components/feedback/ModalDialog";
 import { PageHeader } from "../components/layout/PageHeader";
 import { DataTable } from "../components/tables/DataTable";
+import { TablePagination } from "../components/tables/TablePagination";
+import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatInteger } from "../utils/format";
 
 const PRESET_LABELS = {
@@ -40,10 +47,47 @@ const EMPTY_OVERVIEW: PolicyOverview = {
 };
 
 type RuleKind = PolicyRule["kind"];
+type PolicyListKind = "resource" | RuleKind;
+type PolicyListItem = ProtectedResource | PolicyRule;
+type PolicyListQuery = ProtectedResourceListQuery & PolicyRuleListQuery;
 type PolicyDialog =
   | { family: "resource"; mode: "create" | "edit"; resource?: ProtectedResource }
   | { family: RuleKind; mode: "create" | "edit"; rule?: PolicyRule }
   | null;
+
+const POLICY_LISTS: Record<PolicyListKind, {
+  addLabel: string;
+  description: string;
+  emptyDescription: string;
+  heading: string;
+  paginationLabel: string;
+  tabLabel: string;
+}> = {
+  resource: {
+    addLabel: "添加目录防护",
+    description: "受保护目录按疑似访问路径触发，列表独立分页，避免和黑白名单挤在同一个窄表格里。",
+    emptyDescription: "暂无目录防护",
+    heading: "目录防护列表",
+    paginationLabel: "目录防护分页",
+    tabLabel: "目录防护",
+  },
+  blacklist: {
+    addLabel: "添加黑名单",
+    description: "黑名单按完整提示词或命令文本匹配，用于提高风险评分；不和白名单混排。",
+    emptyDescription: "暂无黑名单规则",
+    heading: "黑名单列表",
+    paginationLabel: "黑名单分页",
+    tabLabel: "黑名单",
+  },
+  allowlist: {
+    addLabel: "添加白名单",
+    description: "白名单只用于低风险降噪，不能覆盖 L4 硬拒绝、目录防护或脚本外传证据。",
+    emptyDescription: "暂无白名单规则",
+    heading: "白名单列表",
+    paginationLabel: "白名单分页",
+    tabLabel: "白名单",
+  },
+};
 
 function formatPreset(value: ProtectedResource["preset"]): string {
   return PRESET_LABELS[value] ?? value;
@@ -66,10 +110,24 @@ function dialogTitle(dialog: NonNullable<PolicyDialog>): string {
   return dialog.family === "resource" ? `${prefix}目录防护` : `${prefix}${ruleKindLabel(dialog.family)}`;
 }
 
+function enabledLabel(enabled: boolean): string {
+  return enabled ? "启用" : "停用";
+}
+
+function isProtectedResource(item: PolicyListItem): item is ProtectedResource {
+  return "resourceId" in item;
+}
+
+function isPolicyRule(item: PolicyListItem): item is PolicyRule {
+  return "ruleId" in item;
+}
+
 export function PoliciesPage() {
   const [overview, setOverview] = useState<PolicyOverview>(EMPTY_OVERVIEW);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [activeList, setActiveList] = useState<PolicyListKind>("resource");
+  const [listRefreshKey, setListRefreshKey] = useState(0);
   const [dialog, setDialog] = useState<PolicyDialog>(null);
   const [resourcePath, setResourcePath] = useState("");
   const [resourcePreset, setResourcePreset] = useState<ProtectedResource["preset"]>("read_only");
@@ -79,20 +137,37 @@ export function PoliciesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   async function loadOverview(): Promise<void> {
-    setLoading(true);
-    setError(null);
+    setOverviewLoading(true);
+    setOverviewError(null);
     try {
       setOverview(await getPolicyOverview());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "策略配置加载失败");
+      setOverviewError(loadError instanceof Error ? loadError.message : "策略配置加载失败");
     } finally {
-      setLoading(false);
+      setOverviewLoading(false);
     }
   }
 
   useEffect(() => {
     void loadOverview();
   }, []);
+
+  const activeQuery = useMemo<Omit<PolicyListQuery, "pageNum" | "pageSize">>(() => (
+    activeList === "resource" ? {} : { kind: activeList }
+  ), [activeList]);
+
+  const policyList = usePagedListResource<PolicyListItem, PolicyListQuery>({
+    loadPage: async (query) => {
+      if (activeList === "resource") {
+        const page = await listProtectedResources(query);
+        return page as PageResponse<PolicyListItem>;
+      }
+      const page = await listPolicyRules({ ...query, kind: activeList });
+      return page as PageResponse<PolicyListItem>;
+    },
+    query: activeQuery,
+    refreshKey: `${activeList}:${listRefreshKey}`,
+  });
 
   const enabledResources = useMemo(
     () => overview.protectedResources.filter((resource) => resource.enabled),
@@ -106,6 +181,11 @@ export function PoliciesPage() {
     () => overview.rules.filter((rule) => rule.enabled && rule.kind === "allowlist"),
     [overview.rules],
   );
+  const activeConfig = POLICY_LISTS[activeList];
+
+  function refreshActiveList(): void {
+    setListRefreshKey((current) => current + 1);
+  }
 
   function closeDialog(): void {
     if (!submitting) {
@@ -134,6 +214,14 @@ export function PoliciesPage() {
     });
   }
 
+  function switchList(kind: PolicyListKind): void {
+    if (kind === activeList) {
+      return;
+    }
+    policyList.resetPaging();
+    setActiveList(kind);
+  }
+
   async function handleCreateResource(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const path = resourcePath.trim();
@@ -142,7 +230,7 @@ export function PoliciesPage() {
     }
     const existingResource = dialog?.family === "resource" ? dialog.resource : undefined;
     setSubmitting(true);
-    setError(null);
+    setOverviewError(null);
     try {
       const created = await createProtectedResource({
         resourceId: existingResource?.resourceId,
@@ -159,8 +247,9 @@ export function PoliciesPage() {
       }));
       setResourcePath("");
       setDialog(null);
+      refreshActiveList();
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "目录防护保存失败");
+      setOverviewError(createError instanceof Error ? createError.message : "目录防护保存失败");
     } finally {
       setSubmitting(false);
     }
@@ -178,7 +267,7 @@ export function PoliciesPage() {
       return;
     }
     setSubmitting(true);
-    setError(null);
+    setOverviewError(null);
     try {
       const created = await createPolicyRule({
         ruleId: existingRule?.ruleId,
@@ -198,18 +287,73 @@ export function PoliciesPage() {
       }));
       setPattern("");
       setDialog(null);
+      refreshActiveList();
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : `${ruleKindLabel(kind)}保存失败`);
+      setOverviewError(createError instanceof Error ? createError.message : `${ruleKindLabel(kind)}保存失败`);
     } finally {
       setSubmitting(false);
     }
   }
 
-  const statusText = error
-    ? `策略配置加载失败：${error}`
-    : loading
-      ? "正在加载 Go 控制面策略"
-      : "目录防护按疑似访问路径触发；黑名单和白名单按完整提示词或命令文本匹配，白名单不能覆盖 L4 硬拒绝。";
+  const statusText = overviewError
+    ? `策略配置加载失败：${overviewError}`
+    : overviewLoading
+      ? "正在加载策略配置概览"
+      : "目录防护、黑名单和白名单分开查看；三类列表都走后端分页，白名单不能覆盖 L4 硬拒绝。";
+
+  const rows = activeList === "resource"
+    ? policyList.items.filter(isProtectedResource).map((resource) => ({
+      id: resource.resourceId,
+      path: resource.path,
+      preset: formatPreset(resource.preset),
+      version: `策略版本 ${formatInteger(resource.version)}`,
+      enabled: enabledLabel(resource.enabled),
+      action: (
+        <Button
+          aria-label={`修改目录防护 ${resource.path}`}
+          type="link"
+          onClick={() => openResourceDialog(resource)}
+        >
+          修改
+        </Button>
+      ),
+    }))
+    : policyList.items.filter((item): item is PolicyRule => isPolicyRule(item) && item.kind === activeList).map((rule) => ({
+      id: rule.ruleId,
+      scope: formatScope(rule.scope),
+      patternType: formatPatternType(rule.patternType),
+      pattern: rule.pattern,
+      riskDelta: rule.riskDelta >= 0 ? `+${formatInteger(rule.riskDelta)}` : formatInteger(rule.riskDelta),
+      enabled: enabledLabel(rule.enabled),
+      version: `策略版本 ${formatInteger(rule.version)}`,
+      action: (
+        <Button
+          aria-label={`修改${ruleKindLabel(rule.kind)} ${rule.pattern}`}
+          type="link"
+          onClick={() => openRuleDialog(rule.kind, rule)}
+        >
+          修改
+        </Button>
+      ),
+    }));
+
+  const columns = activeList === "resource"
+    ? [
+      { key: "path", label: "目录路径", maxWidth: 520, minWidth: 300, width: 420 },
+      { key: "preset", label: "权限预设", maxWidth: 160, minWidth: 112, width: 128 },
+      { key: "version", label: "策略版本", maxWidth: 160, minWidth: 112, width: 128 },
+      { key: "enabled", label: "状态", maxWidth: 128, minWidth: 96, width: 104 },
+      { key: "action", label: "操作" },
+    ]
+    : [
+      { key: "scope", label: "作用域", maxWidth: 160, minWidth: 112, width: 128 },
+      { key: "patternType", label: "匹配方式", maxWidth: 180, minWidth: 128, width: 144 },
+      { key: "pattern", label: "完整匹配内容", maxWidth: 520, minWidth: 300, width: 420 },
+      { key: "riskDelta", label: "风险调整", maxWidth: 128, minWidth: 96, width: 104 },
+      { key: "enabled", label: "状态", maxWidth: 128, minWidth: 96, width: 104 },
+      { key: "version", label: "策略版本", maxWidth: 160, minWidth: 112, width: 128 },
+      { key: "action", label: "操作" },
+    ];
 
   return (
     <div className="page-stack">
@@ -273,7 +417,7 @@ export function PoliciesPage() {
                 ))}
               </select>
             </label>
-            <div className="audit-filter-form__actions">
+            <div className="audit-filter-form__actions policy-form-actions">
               <Button onClick={closeDialog}>取消</Button>
               <Button htmlType="submit" loading={submitting} type="primary">保存目录防护</Button>
             </div>
@@ -324,7 +468,7 @@ export function PoliciesPage() {
                 onChange={(event) => setPattern(event.target.value)}
               />
             </label>
-            <div className="audit-filter-form__actions">
+            <div className="audit-filter-form__actions policy-form-actions">
               <Button onClick={closeDialog}>取消</Button>
               <Button htmlType="submit" loading={submitting} type="primary">{`保存${ruleKindLabel(dialog.family)}`}</Button>
             </div>
@@ -332,132 +476,52 @@ export function PoliciesPage() {
         </ModalDialog>
       ) : null}
 
-      <section className="table-panel">
+      <section className="policy-list-panel table-panel">
+        <div className="policy-list-tabs" role="tablist" aria-label="策略配置列表类型">
+          {(Object.keys(POLICY_LISTS) as PolicyListKind[]).map((kind) => (
+            <button
+              aria-selected={activeList === kind}
+              className={activeList === kind ? "policy-list-tab policy-list-tab--active" : "policy-list-tab"}
+              key={kind}
+              role="tab"
+              type="button"
+              onClick={() => switchList(kind)}
+            >
+              {POLICY_LISTS[kind].tabLabel}
+            </button>
+          ))}
+        </div>
+
         <div className="table-panel__header">
           <div>
-            <h2 className="panel__title">目录防护</h2>
-            <p className="panel__subtitle">只要工具调用疑似访问受保护目录，就生成路径证据并交给 Go 控制面裁决；权限预设不包含执行禁用项。</p>
+            <h2 className="panel__title">{activeConfig.heading}</h2>
+            <p className="panel__subtitle">{activeConfig.description}</p>
           </div>
-          <Button type="primary" onClick={() => openResourceDialog()}>添加目录防护</Button>
+          <Button
+            type="primary"
+            onClick={() => {
+              if (activeList === "resource") {
+                openResourceDialog();
+                return;
+              }
+              openRuleDialog(activeList);
+            }}
+          >
+            {activeConfig.addLabel}
+          </Button>
         </div>
-        <DataTable
-          columns={[
-            { key: "path", label: "目录路径" },
-            { key: "preset", label: "权限预设" },
-            { key: "version", label: "策略版本" },
-            { key: "enabled", label: "状态" },
-            { key: "action", label: "操作" },
-          ]}
-          error={error}
-          loading={loading}
-          onRetry={() => void loadOverview()}
-          rows={overview.protectedResources.map((resource) => ({
-            id: resource.resourceId,
-            path: resource.path,
-            preset: formatPreset(resource.preset),
-            version: `策略版本 ${formatInteger(resource.version)}`,
-            enabled: resource.enabled ? "启用" : "停用",
-            action: (
-              <Button
-                aria-label={`修改目录防护 ${resource.path}`}
-                type="link"
-                onClick={() => openResourceDialog(resource)}
-              >
-                修改
-              </Button>
-            ),
-          }))}
-        />
-      </section>
 
-      <section className="split-grid split-grid--equal">
-        <PolicyRuleTable
-          title="黑名单"
-          subtitle="命中完整提示词或命令文本后提高风险评分；不依赖目录疑似访问匹配。"
-          buttonLabel="添加黑名单"
-          rules={blacklistRules}
-          loading={loading}
-          error={error}
-          onCreate={() => openRuleDialog("blacklist")}
-          onEdit={(rule) => openRuleDialog("blacklist", rule)}
-          onRetry={() => void loadOverview()}
+        <DataTable
+          columns={columns}
+          emptyDescription={activeConfig.emptyDescription}
+          error={policyList.error}
+          loading={policyList.loading}
+          loadingLabel={`正在加载${activeConfig.heading}`}
+          onRetry={policyList.retry}
+          rows={rows}
         />
-        <PolicyRuleTable
-          title="白名单"
-          subtitle="只用于低风险降噪，按完整文本匹配，不能覆盖 L4 硬拒绝、目录防护或脚本外传证据。"
-          buttonLabel="添加白名单"
-          rules={allowlistRules}
-          loading={loading}
-          error={error}
-          onCreate={() => openRuleDialog("allowlist")}
-          onEdit={(rule) => openRuleDialog("allowlist", rule)}
-          onRetry={() => void loadOverview()}
-        />
+        <TablePagination {...policyList.paginationProps} ariaLabel={activeConfig.paginationLabel} />
       </section>
     </div>
-  );
-}
-
-function PolicyRuleTable({
-  buttonLabel,
-  error,
-  loading,
-  onCreate,
-  onEdit,
-  onRetry,
-  rules,
-  subtitle,
-  title,
-}: {
-  buttonLabel: string;
-  error: string | null;
-  loading: boolean;
-  onCreate: () => void;
-  onEdit: (rule: PolicyRule) => void;
-  onRetry: () => void;
-  rules: PolicyRule[];
-  subtitle: string;
-  title: string;
-}) {
-  return (
-    <article className="table-panel">
-      <div className="table-panel__header">
-        <div>
-          <h2 className="panel__title">{title}</h2>
-          <p className="panel__subtitle">{subtitle}</p>
-        </div>
-        <Button type="primary" onClick={onCreate}>{buttonLabel}</Button>
-      </div>
-      <DataTable
-        columns={[
-          { key: "scope", label: "作用域" },
-          { key: "patternType", label: "匹配方式" },
-          { key: "pattern", label: "完整匹配内容" },
-          { key: "riskDelta", label: "风险调整" },
-          { key: "version", label: "策略版本" },
-          { key: "action", label: "操作" },
-        ]}
-        error={error}
-        loading={loading}
-        onRetry={onRetry}
-        rows={rules.map((rule) => ({
-          id: rule.ruleId,
-          scope: formatScope(rule.scope),
-          patternType: formatPatternType(rule.patternType),
-          pattern: rule.pattern,
-          riskDelta: rule.riskDelta >= 0 ? `+${formatInteger(rule.riskDelta)}` : formatInteger(rule.riskDelta),
-          version: `策略版本 ${formatInteger(rule.version)}`,
-          action: (
-            <Button
-              aria-label={`修改${title} ${rule.pattern}`}
-              type="link"
-              onClick={() => onEdit(rule)}
-            >
-              修改
-            </Button>
-          ),
-        }))}
-      />
-    </article>
   );
 }

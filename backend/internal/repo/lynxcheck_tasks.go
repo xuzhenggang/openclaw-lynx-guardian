@@ -26,8 +26,8 @@ type LynxCheckTaskListQuery struct {
 	Limit      *int
 	Cursor     *string
 	Source     *string
-	Trigger    *string
-	Status     *string
+	Trigger    []string
+	Status     []string
 }
 
 type LynxCheckTaskRepository struct {
@@ -139,8 +139,8 @@ func (r *LynxCheckTaskRepository) List(ctx context.Context, query LynxCheckTaskL
 	}, query.Q)
 	filter.AppendEquals("session_key", query.SessionKey)
 	filter.AppendEquals("source", query.Source)
-	filter.AppendEquals("trigger", query.Trigger)
-	filter.AppendEquals("status", query.Status)
+	filter.AppendIn("trigger", query.Trigger)
+	filter.AppendIn("status", query.Status)
 	appendTimeRange(filter, "created_at", query.FromMs, query.ToMs)
 
 	total, err := countRowsContext(ctx, r.db, "lynx_check_tasks", filter)

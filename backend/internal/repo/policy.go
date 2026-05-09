@@ -8,7 +8,27 @@ import (
 	"time"
 
 	"github.com/openclaw/lynx-guardian/backend/internal/api"
+	"github.com/openclaw/lynx-guardian/backend/internal/service"
 )
+
+type ProtectedResourceListQuery struct {
+	Q        *string
+	Enabled  *bool
+	PageNum  *int
+	PageSize *int
+	Limit    *int
+}
+
+type PolicyRuleListQuery struct {
+	Q           *string
+	Kind        *string
+	Scope       *string
+	PatternType *string
+	Enabled     *bool
+	PageNum     *int
+	PageSize    *int
+	Limit       *int
+}
 
 func (r *PolicyRepository) CreatePolicyVersion(ctx context.Context, actorID string, summary string) (api.PolicyVersion, error) {
 	now := time.Now().UnixMilli()
@@ -173,6 +193,40 @@ func (r *PolicyRepository) ListPolicyRules(ctx context.Context) ([]api.PolicyRul
 	return out, rows.Err()
 }
 
+func (r *PolicyRepository) ListPolicyRulesPage(ctx context.Context, query PolicyRuleListQuery) (service.PageResponse[api.PolicyRule], error) {
+	page := service.ResolvePageRequest(query.PageNum, query.PageSize, query.Limit)
+	filter := policyRuleListFilter(query)
+
+	total, err := countRowsContext(ctx, r.db, "policy_rules", filter)
+	if err != nil {
+		return service.PageResponse[api.PolicyRule]{}, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT rule_id, version, kind, scope, pattern_type, pattern, risk_delta, enabled, created_by, created_at_ms, updated_at_ms
+		FROM policy_rules `+filter.Where()+`
+		ORDER BY updated_at_ms DESC, rule_id ASC
+		LIMIT ? OFFSET ?
+	`, append(filter.Params(), page.PageSize, page.Offset)...)
+	if err != nil {
+		return service.PageResponse[api.PolicyRule]{}, err
+	}
+	defer rows.Close()
+
+	out := make([]api.PolicyRule, 0, page.PageSize)
+	for rows.Next() {
+		item, err := scanPolicyRule(rows)
+		if err != nil {
+			return service.PageResponse[api.PolicyRule]{}, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return service.PageResponse[api.PolicyRule]{}, err
+	}
+	return service.BuildPageResponse(out, total, page), nil
+}
+
 func (r *PolicyRepository) ListProtectedResources(ctx context.Context) ([]api.ProtectedResource, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT resource_id, version, path, COALESCE(real_path, ''), preset, enabled, created_by, created_at_ms, updated_at_ms
@@ -205,6 +259,122 @@ func (r *PolicyRepository) ListProtectedResources(ctx context.Context) ([]api.Pr
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func (r *PolicyRepository) ListProtectedResourcesPage(ctx context.Context, query ProtectedResourceListQuery) (service.PageResponse[api.ProtectedResource], error) {
+	page := service.ResolvePageRequest(query.PageNum, query.PageSize, query.Limit)
+	filter := protectedResourceListFilter(query)
+
+	total, err := countRowsContext(ctx, r.db, "protected_resources", filter)
+	if err != nil {
+		return service.PageResponse[api.ProtectedResource]{}, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT resource_id, version, path, COALESCE(real_path, ''), preset, enabled, created_by, created_at_ms, updated_at_ms
+		FROM protected_resources `+filter.Where()+`
+		ORDER BY updated_at_ms DESC, resource_id ASC
+		LIMIT ? OFFSET ?
+	`, append(filter.Params(), page.PageSize, page.Offset)...)
+	if err != nil {
+		return service.PageResponse[api.ProtectedResource]{}, err
+	}
+	defer rows.Close()
+
+	out := make([]api.ProtectedResource, 0, page.PageSize)
+	for rows.Next() {
+		item, err := scanProtectedResource(rows)
+		if err != nil {
+			return service.PageResponse[api.ProtectedResource]{}, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return service.PageResponse[api.ProtectedResource]{}, err
+	}
+	return service.BuildPageResponse(out, total, page), nil
+}
+
+func protectedResourceListFilter(query ProtectedResourceListQuery) *Filter {
+	filter := &Filter{}
+	filter.AppendTextSearch([]string{
+		"resource_id",
+		"path",
+		"real_path",
+		"preset",
+		"created_by",
+	}, query.Q)
+	filter.AppendBool("enabled", query.Enabled)
+	return filter
+}
+
+func policyRuleListFilter(query PolicyRuleListQuery) *Filter {
+	filter := &Filter{}
+	filter.AppendTextSearch([]string{
+		"rule_id",
+		"kind",
+		"scope",
+		"pattern_type",
+		"pattern",
+		"created_by",
+	}, query.Q)
+	filter.AppendEquals("kind", query.Kind)
+	filter.AppendEquals("scope", query.Scope)
+	filter.AppendEquals("pattern_type", query.PatternType)
+	filter.AppendBool("enabled", query.Enabled)
+	return filter
+}
+
+type policyRuleScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanPolicyRule(scanner policyRuleScanner) (api.PolicyRule, error) {
+	var item api.PolicyRule
+	var enabled int64
+	err := scanner.Scan(
+		&item.RuleID,
+		&item.Version,
+		&item.Kind,
+		&item.Scope,
+		&item.PatternType,
+		&item.Pattern,
+		&item.RiskDelta,
+		&enabled,
+		&item.CreatedBy,
+		&item.CreatedAtMs,
+		&item.UpdatedAtMs,
+	)
+	if err != nil {
+		return api.PolicyRule{}, err
+	}
+	item.Enabled = fromBoolInt(enabled)
+	return item, nil
+}
+
+type protectedResourceScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanProtectedResource(scanner protectedResourceScanner) (api.ProtectedResource, error) {
+	var item api.ProtectedResource
+	var enabled int64
+	err := scanner.Scan(
+		&item.ResourceID,
+		&item.Version,
+		&item.Path,
+		&item.RealPath,
+		&item.Preset,
+		&enabled,
+		&item.CreatedBy,
+		&item.CreatedAtMs,
+		&item.UpdatedAtMs,
+	)
+	if err != nil {
+		return api.ProtectedResource{}, err
+	}
+	item.Enabled = fromBoolInt(enabled)
+	return item, nil
 }
 
 func (r *PolicyRepository) InsertScriptFindings(ctx context.Context, decisionID string, req api.DecisionRequest) error {

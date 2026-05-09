@@ -9,7 +9,7 @@ import type {
 import { buildQueryString, fetchJson } from "./client";
 
 export interface SecurityEventListQuery extends CommonListQuery {
-  eventKind?: SecurityEventKind;
+  eventKind?: SecurityEventKind[];
 }
 
 export function listSecurityEvents(query: SecurityEventListQuery = {}): Promise<SecurityEventListResponse> {

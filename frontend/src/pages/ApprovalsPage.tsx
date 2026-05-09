@@ -15,7 +15,7 @@ import { PageHeader } from "../components/layout/PageHeader";
 import { DataTable } from "../components/tables/DataTable";
 import { TablePagination } from "../components/tables/TablePagination";
 import { paginateMockPage, usePagedListResource } from "../hooks/usePagedListResource";
-import { formatTimestamp } from "../utils/format";
+import { formatCompactId, formatTimestamp } from "../utils/format";
 import { formatQaRecordId } from "../utils/qa-records";
 import { renderRiskBadge, renderStateBadge } from "../utils/status";
 
@@ -366,7 +366,7 @@ export function ApprovalsPage() {
             id: approval.approvalId,
             approval: (
               <div className="row-stack">
-                <strong>{approval.approvalId}</strong>
+                <strong title={approval.approvalId}>{formatCompactId(approval.approvalId)}</strong>
                 <span>{formatQaRecordId(approval.qaRecordId)}</span>
               </div>
             ),

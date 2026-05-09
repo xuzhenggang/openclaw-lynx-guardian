@@ -192,6 +192,9 @@ type DecisionResponse struct {
 type ChainSummary struct {
 	ChainID          string               `json:"chainId"`
 	SessionKey       string               `json:"sessionKey"`
+	ChannelProfile   string               `json:"channelProfile,omitempty"`
+	ChannelID        string               `json:"channelId,omitempty"`
+	ConversationID   string               `json:"conversationId,omitempty"`
 	Status           string               `json:"status,omitempty"`
 	UpdatedAt        string               `json:"updatedAt,omitempty"`
 	ExpiresAt        string               `json:"expiresAt,omitempty"`

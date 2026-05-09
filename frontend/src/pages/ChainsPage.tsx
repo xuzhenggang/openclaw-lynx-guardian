@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Button, Card, Input, Typography } from "antd";
+import { Button, Card, Input, Select, Typography } from "antd";
 
 import {
   listChains,
@@ -12,6 +12,7 @@ import { DataTable } from "../components/tables/DataTable";
 import { TablePagination } from "../components/tables/TablePagination";
 import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatInteger } from "../utils/format";
+import { resolveUserVisiblePrompt } from "../utils/prompts";
 
 interface ChainFilters {
   channelProfile: string;
@@ -22,6 +23,8 @@ const EMPTY_FILTERS: ChainFilters = {
   channelProfile: "",
   q: "",
 };
+
+const DEFAULT_CHANNEL_OPTIONS = ["webchat", "feishu"];
 
 function buildChainQuery(filters: ChainFilters): Omit<ChainListQuery, "pageNum" | "pageSize"> {
   return {
@@ -34,6 +37,19 @@ function joinSignals(values: string[]): string {
   return values.length > 0 ? values.join("；") : "暂无";
 }
 
+function buildChannelOptions(items: ChainSummary[], selectedChannel: string) {
+  const values = new Set(DEFAULT_CHANNEL_OPTIONS);
+  for (const item of items) {
+    if (item.channelProfile) {
+      values.add(item.channelProfile);
+    }
+  }
+  if (selectedChannel) {
+    values.add(selectedChannel);
+  }
+  return [...values].sort().map((value) => ({ label: value, value }));
+}
+
 function formatPromptMeta(
   prompt: ChainSummary["coveredPrompts"][number],
 ): string {
@@ -44,6 +60,14 @@ function formatPromptMeta(
   );
 }
 
+function formatCoveredPromptText(
+  prompt: ChainSummary["coveredPrompts"][number],
+): string {
+  return resolveUserVisiblePrompt({
+    userPromptExcerpt: prompt.userPromptExcerpt,
+  });
+}
+
 function formatPromptPreview(
   prompts: ChainSummary["coveredPrompts"],
 ): string {
@@ -52,12 +76,25 @@ function formatPromptPreview(
   }
   const preview = prompts
     .slice(0, 2)
-    .map((prompt) => prompt.userPromptExcerpt)
+    .map(formatCoveredPromptText)
     .filter(Boolean)
     .join("；");
   const suffix =
     prompts.length > 2 ? ` 等 ${formatInteger(prompts.length)} 条` : "";
   return `覆盖的输入词：${preview}${suffix}`;
+}
+
+function buildRelationshipItems(chain: ChainSummary): string[] {
+  return [
+    chain.sessionKey ? `同一会话：${chain.sessionKey}` : undefined,
+    chain.channelProfile ? `渠道：${chain.channelProfile}` : undefined,
+    chain.conversationId ? `会话窗口：${chain.conversationId}` : undefined,
+    `覆盖问答：${formatInteger(chain.promptCount)} 条`,
+    chain.pendingApproval ? `待审批：${chain.pendingApproval}` : undefined,
+    chain.activeGrantId ? `当前放行：${chain.activeGrantId}` : undefined,
+    chain.recentDenials.length > 0 ? `近期拒绝：${joinSignals(chain.recentDenials)}` : undefined,
+    chain.recentTools.length > 0 ? `关联工具：${joinSignals(chain.recentTools)}` : undefined,
+  ].filter((item): item is string => Boolean(item));
 }
 
 export function ChainsPage() {
@@ -92,6 +129,7 @@ export function ChainsPage() {
     : loading
       ? "正在加载多轮链路"
       : undefined;
+  const channelOptions = buildChannelOptions(items, draftFilters.channelProfile);
 
   return (
     <div className="page-stack">
@@ -133,15 +171,16 @@ export function ChainsPage() {
           </label>
           <label className="filter-field">
             <span>渠道</span>
-            <Input
+            <Select
               allowClear
               aria-label="渠道"
-              placeholder="例如 webchat / feishu"
-              value={draftFilters.channelProfile}
-              onChange={(event) =>
+              options={channelOptions}
+              placeholder="全部渠道"
+              value={draftFilters.channelProfile || undefined}
+              onChange={(value) =>
                 setDraftFilters((current) => ({
                   ...current,
-                  channelProfile: event.target.value,
+                  channelProfile: value ?? "",
                 }))
               }
             />
@@ -175,37 +214,44 @@ export function ChainsPage() {
             {
               key: "chain",
               label: "链路",
-              maxWidth: 300,
-              minWidth: 220,
+              maxWidth: 220,
+              minWidth: 130,
+              width: 160,
+            },
+            {
+              key: "session",
+              label: "会话",
+              maxWidth: 240,
+              minWidth: 150,
+              width: 180,
+            },
+            {
+              key: "prompts",
+              label: "关联问答",
+              maxWidth: 320,
+              minWidth: 200,
               width: 260,
             },
             {
               key: "signals",
               label: "风险线索",
-              maxWidth: 320,
-              minWidth: 220,
-              width: 280,
-            },
-            {
-              key: "tools",
-              label: "工具",
-              maxWidth: 220,
-              minWidth: 160,
-              width: 190,
+              maxWidth: 300,
+              minWidth: 190,
+              width: 240,
             },
             {
               key: "review",
               label: "人工动作",
               maxWidth: 220,
-              minWidth: 160,
-              width: 190,
+              minWidth: 140,
+              width: 180,
             },
             {
               key: "detail",
-              label: "操作",
-              maxWidth: 140,
-              minWidth: 104,
-              width: 116,
+              label: "详情",
+              maxWidth: 128,
+              minWidth: 96,
+              width: 104,
             },
           ]}
           error={error}
@@ -216,11 +262,18 @@ export function ChainsPage() {
             chain: (
               <div className="row-stack">
                 <strong>{item.chainId}</strong>
-                <span>{item.sessionKey}</span>
-                <span className="chain-prompt-preview">
-                  {formatPromptPreview(item.coveredPrompts)}
-                </span>
               </div>
+            ),
+            session: (
+              <div className="row-stack">
+                <strong>{item.sessionKey || "暂无会话"}</strong>
+                <span>{item.channelProfile || "未知渠道"}</span>
+              </div>
+            ),
+            prompts: (
+              <span className="chain-prompt-preview">
+                {formatPromptPreview(item.coveredPrompts)}
+              </span>
             ),
             signals: joinSignals([
               ...item.recentSensitive,
@@ -295,6 +348,22 @@ export function ChainsPage() {
             <section className="audit-detail-dialog__section">
               <div className="panel__header audit-detail-dialog__sectionHeader">
                 <div>
+                  <h3 className="panel__title">关联关系</h3>
+                  <p className="panel__subtitle">说明这些问答、审批、工具和放行为何被归到同一条链路。</p>
+                </div>
+              </div>
+              <ol className="prompt-coverage-list">
+                {buildRelationshipItems(selectedChain).map((item) => (
+                  <li className="prompt-coverage-list__item" key={item}>
+                    <p className="prompt-coverage-list__text">{item}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="audit-detail-dialog__section">
+              <div className="panel__header audit-detail-dialog__sectionHeader">
+                <div>
                   <h3 className="panel__title">链路信号</h3>
                   <p className="panel__subtitle">同一上下文内累计的身份、敏感目标、审批和工具调用信号。</p>
                 </div>
@@ -333,7 +402,7 @@ export function ChainsPage() {
                       key={`${prompt.qaRecordId}-${prompt.startedAtMs ?? 0}`}
                     >
                       <p className="prompt-coverage-list__text">
-                        {prompt.userPromptExcerpt}
+                        {formatCoveredPromptText(prompt)}
                       </p>
                       <span className="prompt-coverage-list__meta">
                         {formatPromptMeta(prompt)}

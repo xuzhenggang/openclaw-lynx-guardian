@@ -8,15 +8,17 @@ import { PageHeader } from "../components/layout/PageHeader";
 import { DataTable } from "../components/tables/DataTable";
 import { TablePagination } from "../components/tables/TablePagination";
 import { usePagedListResource } from "../hooks/usePagedListResource";
-import { formatInteger } from "../utils/format";
+import { formatCompactId, formatInteger } from "../utils/format";
 
-function formatScope(scope: Record<string, unknown>): string {
-  const keys = Object.keys(scope);
-  if (keys.length === 0) {
-    return "未声明范围";
-  }
-  return keys.map((key) => `${key}:${String(scope[key])}`).join("；");
-}
+const SCOPE_LABELS: Record<string, string> = {
+  expiresAt: "有效期",
+  operationKind: "操作",
+  path: "路径",
+  riskLevel: "风险等级",
+  sessionKey: "会话",
+  tool: "工具",
+  toolName: "工具",
+};
 
 function formatIsoTime(value: string | undefined): string {
   if (!value) {
@@ -44,6 +46,23 @@ function buildGrantQuery(filters: GrantFilters): Omit<GrantListQuery, "pageNum" 
     q: filters.q.trim() || undefined,
     requesterId: filters.requesterId.trim() || undefined,
   };
+}
+
+function formatScopeEntries(scope: Record<string, unknown>): Array<{ label: string; value: string }> {
+  return Object.entries(scope).map(([key, value]) => ({
+    label: SCOPE_LABELS[key] ?? key,
+    value: String(value),
+  }));
+}
+
+function buildExecutionLinks(grant: Grant): string[] {
+  return [
+    grant.chainId ? `链路：${grant.chainId}` : undefined,
+    grant.sessionKey ? `会话：${grant.sessionKey}` : undefined,
+    grant.approvalId ? `审批：${grant.approvalId}` : undefined,
+    grant.toolName ? `工具：${grant.toolName}` : undefined,
+    grant.targetKind || grant.targetHash ? `目标：${[grant.targetKind, grant.targetHash].filter(Boolean).join(" / ")}` : undefined,
+  ].filter((item): item is string => Boolean(item));
 }
 
 export function GrantsPage() {
@@ -222,8 +241,8 @@ export function GrantsPage() {
             id: item.grantId,
             grant: (
               <div className="row-stack">
-                <strong>{item.grantId}</strong>
-                <span>{item.approvalId}</span>
+                <strong title={item.grantId}>{formatCompactId(item.grantId)}</strong>
+                <span title={item.approvalId}>{formatCompactId(item.approvalId)}</span>
               </div>
             ),
             requester: item.requesterOuId || item.requesterId || "未知",
@@ -336,15 +355,40 @@ export function GrantsPage() {
             <section className="audit-detail-dialog__section">
               <div className="panel__header audit-detail-dialog__sectionHeader">
                 <div>
+                  <h3 className="panel__title">关联执行链路</h3>
+                  <p className="panel__subtitle">这条放行记录绑定的链路、审批、工具和目标。</p>
+                </div>
+              </div>
+              <ol className="prompt-coverage-list">
+                {buildExecutionLinks(selectedGrant).map((item) => (
+                  <li className="prompt-coverage-list__item" key={item}>
+                    <p className="prompt-coverage-list__text">{item}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="audit-detail-dialog__section">
+              <div className="panel__header audit-detail-dialog__sectionHeader">
+                <div>
                   <h3 className="panel__title">放行范围</h3>
                   <p className="panel__subtitle">后续调用命中这些条件时才会复用这条授权。</p>
                 </div>
               </div>
               <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
-                <div className="detail-panel__field">
-                  <dt>范围内容</dt>
-                  <dd>{formatScope(selectedGrant.resourceScope)}</dd>
-                </div>
+                {formatScopeEntries(selectedGrant.resourceScope).length > 0 ? (
+                  formatScopeEntries(selectedGrant.resourceScope).map((field) => (
+                    <div className="detail-panel__field" key={field.label}>
+                      <dt>{field.label}</dt>
+                      <dd>{field.value}</dd>
+                    </div>
+                  ))
+                ) : (
+                  <div className="detail-panel__field">
+                    <dt>范围内容</dt>
+                    <dd>未声明范围</dd>
+                  </div>
+                )}
                 <div className="detail-panel__field">
                   <dt>撤销原因</dt>
                   <dd>{selectedGrant.revokedReason || "暂无"}</dd>

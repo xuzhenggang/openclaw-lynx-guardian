@@ -16,7 +16,7 @@ type QARecordsListQuery struct {
 	FromMs     *int64
 	ToMs       *int64
 	RiskLevel  []string
-	Status     *string
+	Status     []string
 	PageNum    *int
 	PageSize   *int
 	Limit      *int
@@ -145,7 +145,7 @@ func qaRecordsFilter(query QARecordsListQuery) *Filter {
 	filter := &Filter{}
 	filter.AppendEquals("session_key", query.SessionKey)
 	filter.AppendEquals("run_id", query.RunID)
-	filter.AppendEquals("status", query.Status)
+	filter.AppendIn("status", query.Status)
 	filter.AppendRange("started_at", query.FromMs, query.ToMs)
 	filter.AppendRiskLevelIn("risk_level", query.RiskLevel)
 	filter.AppendTextSearch([]string{

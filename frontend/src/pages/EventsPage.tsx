@@ -23,6 +23,7 @@ import { DataTable } from "../components/tables/DataTable";
 import { TablePagination } from "../components/tables/TablePagination";
 import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatInteger, formatTimestamp } from "../utils/format";
+import { resolveUserVisiblePrompt } from "../utils/prompts";
 import { formatQaRecordId } from "../utils/qa-records";
 import { renderActionBadge, renderPolicyDecisionBadge, renderRiskBadge } from "../utils/status";
 
@@ -34,15 +35,15 @@ type DateRangeValue = [Dayjs | null, Dayjs | null] | null;
 
 interface EventFilters {
   q: string;
-  riskLevel: string;
-  eventKind: string;
+  riskLevel: RiskLevel[];
+  eventKind: SecurityEventKind[];
   dateRange: DateRangeValue;
 }
 
 const EMPTY_FILTERS: EventFilters = {
   q: "",
-  riskLevel: "",
-  eventKind: "",
+  riskLevel: [],
+  eventKind: [],
   dateRange: null,
 };
 
@@ -132,8 +133,8 @@ export function buildDateRangeQuery(value: DateRangeValue): Pick<SecurityEventLi
 function buildEventQuery(filters: EventFilters): SecurityEventListQuery {
   return {
     q: filters.q.trim() || undefined,
-    riskLevel: filters.riskLevel ? [filters.riskLevel as RiskLevel] : undefined,
-    eventKind: filters.eventKind ? filters.eventKind as SecurityEventKind : undefined,
+    riskLevel: filters.riskLevel.length > 0 ? filters.riskLevel : undefined,
+    eventKind: filters.eventKind.length > 0 ? filters.eventKind : undefined,
     ...buildDateRangeQuery(filters.dateRange),
   };
 }
@@ -155,6 +156,14 @@ function formatProcessCell(event: SecurityEventListItemDto): string {
 }
 
 function resolveObjectText(event: SecurityEventListItemDto): string {
+  if (event.eventKind === "input") {
+    return resolveUserVisiblePrompt({
+      userPromptExcerpt: event.detailJson?.userPromptExcerpt
+        ?? event.detailJson?.userPrompt
+        ?? event.objectLabel
+        ?? event.contentExcerpt,
+    });
+  }
   return event.objectLabel ?? event.contentExcerpt ?? event.summary ?? event.title;
 }
 
@@ -164,6 +173,56 @@ function formatRawEvidence(event: SecurityEventListItemDto): string {
 
 function formatDetailJson(value: Record<string, unknown> | undefined): string {
   return value ? JSON.stringify(value, null, 2) : "暂无";
+}
+
+function valueAsDisplayText(value: unknown): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "string") {
+    return value.trim() || undefined;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
+function stringListFromDetail(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map(valueAsDisplayText)
+      .filter((item): item is string => Boolean(item));
+  }
+  const text = valueAsDisplayText(value);
+  return text ? [text] : [];
+}
+
+function formatDetailList(value: unknown): string {
+  const items = stringListFromDetail(value);
+  return items.length > 0 ? items.join("；") : "暂无";
+}
+
+function formatScoreBreakdown(value: unknown): string {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "暂无";
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return valueAsDisplayText(item);
+      }
+      const record = item as Record<string, unknown>;
+      const ruleId = valueAsDisplayText(record.ruleId) ?? valueAsDisplayText(record.label) ?? "评分项";
+      const delta = typeof record.delta === "number"
+        ? record.delta >= 0 ? `+${record.delta}` : String(record.delta)
+        : valueAsDisplayText(record.delta);
+      const reason = valueAsDisplayText(record.reason);
+      return [ruleId, delta, reason ? `：${reason}` : undefined].filter(Boolean).join(" ");
+    })
+    .filter((item): item is string => Boolean(item))
+    .join("；") || "暂无";
 }
 
 export function EventsPage() {
@@ -318,11 +377,13 @@ export function EventsPage() {
             <span>风险等级</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="风险等级"
               options={RISK_OPTIONS}
               placeholder="全部级别"
-              value={draftFilters.riskLevel || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, riskLevel: value ?? "" }))}
+              value={draftFilters.riskLevel}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, riskLevel: value ?? [] }))}
             />
           </label>
 
@@ -330,11 +391,13 @@ export function EventsPage() {
             <span>事件类型</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="事件类型"
               options={EVENT_KIND_OPTIONS}
               placeholder="全部类型"
-              value={draftFilters.eventKind || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, eventKind: value ?? "" }))}
+              value={draftFilters.eventKind}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, eventKind: value ?? [] }))}
             />
           </label>
 
@@ -500,7 +563,30 @@ export function EventsPage() {
             <section className="audit-detail-dialog__section">
               <div className="panel__header audit-detail-dialog__sectionHeader">
                 <div>
-                  <h2 className="panel__title">Detail JSON</h2>
+                  <h2 className="panel__title">判断依据</h2>
+                  <p className="panel__subtitle">规则、模块、评分和关键证据优先用可读字段展示。</p>
+                </div>
+              </div>
+              <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
+                {[
+                  { label: "命中规则", value: formatDetailList(selectedDetail.detailJson?.matchedRules) },
+                  { label: "命中模块", value: formatDetailList(selectedDetail.detailJson?.matchedModules) },
+                  { label: "风险评分", value: selectedDetail.riskScore !== undefined ? String(selectedDetail.riskScore) : "暂无" },
+                  { label: "评分明细", value: formatScoreBreakdown(selectedDetail.detailJson?.scoreBreakdown) },
+                  { label: "关键证据", value: formatDetailList(selectedDetail.detailJson?.evidence) },
+                ].map((field) => (
+                  <div key={field.label} className="detail-panel__field">
+                    <dt>{field.label}</dt>
+                    <dd>{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <section className="audit-detail-dialog__section">
+              <div className="panel__header audit-detail-dialog__sectionHeader">
+                <div>
+                  <h2 className="panel__title">原始结构化详情</h2>
                   <p className="panel__subtitle">原始结构化详情。</p>
                 </div>
               </div>

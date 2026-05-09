@@ -10,6 +10,10 @@ async function readSkillsCss(): Promise<string> {
   return readFile(resolve("src/styles/skills.css"), "utf8");
 }
 
+async function readCss(path: string): Promise<string> {
+  return readFile(resolve(path), "utf8");
+}
+
 function extractCssRule(css: string, selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = css.match(new RegExp(`${escapedSelector}\\s*{([^}]*)}`));
@@ -25,6 +29,20 @@ function extractCssRules(css: string, selector: string): string[] {
 }
 
 describe("theme styles", () => {
+  it("keeps page-private policy, report, and QA styles out of theme.css", async () => {
+    const themeCss = await readThemeCss();
+    const policyCss = await readCss("src/styles/pages-policies.css");
+    const reportCss = await readCss("src/styles/pages-reports.css");
+    const qaCss = await readCss("src/styles/pages-qa.css");
+
+    expect(themeCss).not.toContain(".policy-list-panel");
+    expect(themeCss).not.toContain(".report-side-panel");
+    expect(themeCss).not.toContain(".qa-record-summary");
+    expect(policyCss).toContain(".policy-list-panel");
+    expect(reportCss).toContain(".report-side-panel");
+    expect(qaCss).toContain(".qa-record-summary");
+  });
+
   it("keeps the top bar title vertically centered inside the sticky header", async () => {
     const css = await readThemeCss();
     const titleRule = extractCssRule(css, ".topbar__title");

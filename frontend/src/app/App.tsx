@@ -4,6 +4,7 @@ import { ConfigProvider, theme as antdTheme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 
 import { ConsoleLayout } from "../components/layout/ConsoleLayout";
+import { GlobalLoadingProvider } from "./GlobalLoadingProvider";
 import { normalizeWebviewLocation, WEBVIEW_BASE_PATH } from "./route-paths";
 import { AppRoutes } from "./router";
 
@@ -38,14 +39,16 @@ export function App() {
         },
       }}
     >
-      <BrowserRouter basename={WEBVIEW_BASE_PATH}>
-        <ConsoleLayout
-          themeMode={themeMode}
-          onThemeModeChange={setThemeMode}
-        >
-          <AppRoutes />
-        </ConsoleLayout>
-      </BrowserRouter>
+      <GlobalLoadingProvider>
+        <BrowserRouter basename={WEBVIEW_BASE_PATH}>
+          <ConsoleLayout
+            themeMode={themeMode}
+            onThemeModeChange={setThemeMode}
+          >
+            <AppRoutes />
+          </ConsoleLayout>
+        </BrowserRouter>
+      </GlobalLoadingProvider>
     </ConfigProvider>
   );
 }

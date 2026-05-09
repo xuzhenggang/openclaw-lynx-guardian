@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState, type FormEvent } from "react";
+import { startTransition, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { LynxCheckDetailDto, LynxCheckListItemDto } from "@lynx/local-console-shared";
 import { Button, Input, Select } from "antd";
 
@@ -27,14 +27,14 @@ function isRunningTask(status: string): boolean {
 
 interface CheckFilters {
   q: string;
-  status: string;
-  trigger: string;
+  status: string[];
+  trigger: string[];
 }
 
 const EMPTY_FILTERS: CheckFilters = {
   q: "",
-  status: "",
-  trigger: "",
+  status: [],
+  trigger: [],
 };
 
 const REPORT_USE_DESCRIPTION = "检测报告用于留存每次 /lynx-check 的执行证据、投递结果和完整 Markdown 正文，方便回溯自动巡检是否真实完成。";
@@ -55,8 +55,8 @@ const TRIGGER_OPTIONS = [
 function buildCheckQuery(filters: CheckFilters): Omit<LynxCheckListQuery, "pageNum" | "pageSize"> {
   return {
     q: filters.q.trim() || undefined,
-    status: filters.status || undefined,
-    trigger: filters.trigger || undefined,
+    status: filters.status.length > 0 ? filters.status : undefined,
+    trigger: filters.trigger.length > 0 ? filters.trigger : undefined,
   };
 }
 
@@ -93,7 +93,12 @@ function resolveTaskDuration(item: LynxCheckListItemDto): number | undefined {
 
 function renderReportMarkdown(reportMarkdown: string | undefined) {
   if (!reportMarkdown?.trim()) {
-    return <p className="small-note">当前检测记录暂无完整 Markdown 报告。</p>;
+    return (
+      <section className="report-side-panel__body" aria-label="检测报告 Markdown 正文">
+        <span className="report-side-panel__bodyTitle">报告正文</span>
+        <p className="small-note">当前检测记录暂无完整 Markdown 报告。</p>
+      </section>
+    );
   }
 
   return (
@@ -101,6 +106,22 @@ function renderReportMarkdown(reportMarkdown: string | undefined) {
       <span className="report-side-panel__bodyTitle">报告正文</span>
       <pre className="code-panel code-panel--report report-side-panel__markdown" data-testid="lynx-check-report-markdown">{reportMarkdown}</pre>
     </section>
+  );
+}
+
+function formatBooleanStatus(value: boolean | undefined, positive: string, negative: string): string {
+  if (value === undefined) {
+    return "暂无";
+  }
+  return value ? positive : negative;
+}
+
+function renderDetailField(label: string, value: ReactNode) {
+  return (
+    <div className="report-side-panel__field">
+      <span>{label}</span>
+      <strong>{value || "暂无"}</strong>
+    </div>
   );
 }
 
@@ -191,6 +212,8 @@ export function LynxChecksPage() {
       }
     }
 
+    setSelectedDetail(null);
+    setDetailError(null);
     void loadDetail();
 
     return () => {
@@ -199,6 +222,9 @@ export function LynxChecksPage() {
   }, [selectedRequestId]);
 
   const selectedListItem = items.find((item) => item.requestId === selectedRequestId) ?? null;
+  const selectedRecord = selectedDetail ?? selectedListItem;
+  const selectedReportPath = selectedRecord ? resolveReportPath(selectedRecord) : "--";
+  const selectedErrorMessage = selectedDetail?.errorMessage ?? selectedListItem?.errorMessage;
   const reportEntries = items
     .map((item) => ({
       requestId: item.requestId,
@@ -246,22 +272,26 @@ export function LynxChecksPage() {
             <span>处理状态</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="处理状态"
               options={STATUS_OPTIONS}
               placeholder="全部状态"
-              value={draftFilters.status || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, status: value ?? "" }))}
+              value={draftFilters.status}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, status: value ?? [] }))}
             />
           </label>
           <label className="filter-field">
             <span>触发方式</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="触发方式"
               options={TRIGGER_OPTIONS}
               placeholder="全部方式"
-              value={draftFilters.trigger || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, trigger: value ?? "" }))}
+              value={draftFilters.trigger}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, trigger: value ?? [] }))}
             />
           </label>
           <label className="filter-field filter-field--search">
@@ -342,20 +372,45 @@ export function LynxChecksPage() {
               {runningCount > 0 ? `${runningCount} 个运行中` : selectedRequestId ? "选中记录" : "暂无记录"}
             </span>
           </div>
-          <div className="report-side-panel__meta">
-            <span>问答记录：{formatQaRecordId(selectedDetail?.qaRecordId ?? selectedListItem?.qaRecordId)}</span>
-            <span>当前报告：{selectedDetail?.requestId ?? selectedListItem?.requestId ?? "暂无"}</span>
-          </div>
+
+          <section className="report-side-panel__section" aria-label="报告元信息">
+            <h3 className="report-side-panel__sectionTitle">报告元信息</h3>
+            <div className="report-side-panel__fieldGrid">
+              {renderDetailField("请求 ID", selectedRecord ? <code>请求：{selectedRecord.requestId}</code> : "暂无")}
+              {renderDetailField(
+                "问答记录",
+                selectedRecord?.qaRecordId ? <code>问答：{formatQaRecordId(selectedRecord.qaRecordId)}</code> : "未关联问答记录",
+              )}
+              {renderDetailField("处理状态", selectedRecord ? renderStateBadge(selectedRecord.status) : "暂无")}
+              {renderDetailField("触发来源", selectedRecord ? formatDomainLabel(selectedRecord.trigger) : "暂无")}
+              {renderDetailField("来源类型", selectedRecord ? formatDomainLabel(selectedRecord.source) : "暂无")}
+              {renderDetailField("创建时间", selectedRecord ? formatTimestamp(selectedRecord.createdAtMs) : "暂无")}
+              {renderDetailField("完成时间", selectedRecord?.completedAtMs ? formatTimestamp(selectedRecord.completedAtMs) : "暂无")}
+              {renderDetailField("报告路径", selectedReportPath === "--" ? "暂无" : <code>路径：{selectedReportPath}</code>)}
+            </div>
+          </section>
+
+          <section className="report-side-panel__section" aria-label="投递状态">
+            <h3 className="report-side-panel__sectionTitle">投递状态</h3>
+            <div className="report-side-panel__fieldGrid">
+              {renderDetailField("是否尝试投递", formatBooleanStatus(selectedRecord?.sendAttempted, "已尝试", "未尝试"))}
+              {renderDetailField("是否投递成功", formatBooleanStatus(selectedRecord?.sendSucceeded, "成功", "失败"))}
+              {renderDetailField("投递通道", selectedRecord?.transport ?? "暂无")}
+              {renderDetailField("错误信息", selectedErrorMessage ?? "暂无")}
+            </div>
+          </section>
+
           {detailError ? (
             <p className="small-note">检测报告详情加载失败：{detailError}</p>
           ) : renderReportMarkdown(selectedDetail?.reportMarkdown)}
-          {reportEntries.length > 0 ? (
-            <div className="report-side-panel__paths" aria-label="本页报告索引">
-              <span>本页报告索引</span>
+          {selectedReportPath !== "--" || reportEntries.length > 0 ? (
+            <section className="report-side-panel__paths" aria-label="文件和路径索引">
+              <span>文件和路径索引</span>
+              {selectedReportPath !== "--" ? <code>当前报告：{selectedReportPath}</code> : null}
               {reportEntries.map((entry) => (
-                <code key={entry.requestId}>{entry.reportPath}</code>
+                <code key={entry.requestId} title={entry.requestId}>{entry.reportPath}</code>
               ))}
-            </div>
+            </section>
           ) : null}
         </article>
       </section>

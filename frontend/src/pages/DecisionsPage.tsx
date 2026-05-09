@@ -13,17 +13,17 @@ import { formatInteger } from "../utils/format";
 import { getDecisionTone, renderActionBadge, renderPolicyDecisionBadge, renderRiskBadge } from "../utils/status";
 
 interface DecisionFilters {
-  action: string;
+  action: string[];
   q: string;
-  riskLevel: string;
-  stage: string;
+  riskLevel: RiskLevel[];
+  stage: string[];
 }
 
 const EMPTY_FILTERS: DecisionFilters = {
-  action: "",
+  action: [],
   q: "",
-  riskLevel: "",
-  stage: "",
+  riskLevel: [],
+  stage: [],
 };
 
 const RISK_OPTIONS: Array<{ label: string; value: RiskLevel }> = [
@@ -71,10 +71,10 @@ const STAGE_LABELS: Record<string, string> = {
 
 function buildDecisionQuery(filters: DecisionFilters): Omit<DecisionListQuery, "pageNum" | "pageSize"> {
   return {
-    action: filters.action ? [filters.action] : undefined,
+    action: filters.action.length > 0 ? filters.action : undefined,
     q: filters.q.trim() || undefined,
-    riskLevel: filters.riskLevel ? [filters.riskLevel as RiskLevel] : undefined,
-    stage: filters.stage ? [filters.stage] : undefined,
+    riskLevel: filters.riskLevel.length > 0 ? filters.riskLevel : undefined,
+    stage: filters.stage.length > 0 ? filters.stage : undefined,
   };
 }
 
@@ -293,33 +293,39 @@ export function DecisionsPage() {
             <span>风险等级</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="风险等级"
               options={RISK_OPTIONS}
               placeholder="全部级别"
-              value={draftFilters.riskLevel || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, riskLevel: value ?? "" }))}
+              value={draftFilters.riskLevel}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, riskLevel: value ?? [] }))}
             />
           </label>
           <label className="filter-field">
             <span>裁决阶段</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="裁决阶段"
               options={STAGE_OPTIONS}
               placeholder="全部阶段"
-              value={draftFilters.stage || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, stage: value ?? "" }))}
+              value={draftFilters.stage}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, stage: value ?? [] }))}
             />
           </label>
           <label className="filter-field">
             <span>执行动作</span>
             <Select
               allowClear
+              maxTagCount="responsive"
+              mode="multiple"
               aria-label="执行动作"
               options={ACTION_OPTIONS}
               placeholder="全部动作"
-              value={draftFilters.action || undefined}
-              onChange={(value) => setDraftFilters((current) => ({ ...current, action: value ?? "" }))}
+              value={draftFilters.action}
+              onChange={(value) => setDraftFilters((current) => ({ ...current, action: value ?? [] }))}
             />
           </label>
           <label className="filter-field filter-field--search">
@@ -467,7 +473,7 @@ export function DecisionsPage() {
             <section className="audit-detail-dialog__section">
               <div className="panel__header audit-detail-dialog__sectionHeader">
                 <div>
-                  <h2 className="panel__title">评分与证据</h2>
+                  <h2 className="panel__title">判断依据</h2>
                   <p className="panel__subtitle">命中模块、规则和分数变化，用来复核裁决来源。</p>
                 </div>
               </div>
@@ -475,9 +481,9 @@ export function DecisionsPage() {
                 {[
                   { label: "获胜仲裁器", value: selectedDecision.winningArbiter },
                   { label: "命中模块", value: formatMatchedModulesText(selectedDecision) },
-                  { label: "Matched Rules", value: formatMatchedRules(selectedDecision) },
-                  { label: "Evidence Status", value: formatEvidenceStatus(selectedDecision) },
-                  { label: "Score Breakdown", value: formatScoreBreakdown(collectScoreBreakdown(selectedDecision)) },
+                  { label: "命中规则", value: formatMatchedRules(selectedDecision) },
+                  { label: "证据状态", value: formatEvidenceStatus(selectedDecision) },
+                  { label: "评分明细", value: formatScoreBreakdown(collectScoreBreakdown(selectedDecision)) },
                 ].map((field) => (
                   <div key={field.label} className="detail-panel__field">
                     <dt>{field.label}</dt>

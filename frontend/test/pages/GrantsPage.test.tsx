@@ -107,8 +107,10 @@ describe("GrantsPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("放行概览")).toBeInTheDocument();
     expect(screen.getByText("授权上下文")).toBeInTheDocument();
+    expect(screen.getByText("关联执行链路")).toBeInTheDocument();
     expect(screen.getByText("放行范围")).toBeInTheDocument();
-    expect(screen.getByText("path:C:/Users/example/.env")).toBeInTheDocument();
+    expect(screen.getByText("路径")).toBeInTheDocument();
+    expect(screen.getByText("C:/Users/example/.env")).toBeInTheDocument();
     expect(screen.getByText("manual revoke")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "关闭详情" }));
@@ -130,6 +132,22 @@ describe("GrantsPage", () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
       "/lynx/grants?q=filtered&requesterId=ou-requester&pageNum=1&pageSize=20",
     );
+  });
+
+  it("compacts long grant and approval IDs in the table", async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(createPage([
+      {
+        ...createGrant("grant-1234567890abcdef"),
+        approvalId: "approval-1234567890abcdef",
+      },
+    ])));
+
+    render(<GrantsPage />);
+
+    expect(await screen.findByText("grant-123...cdef")).toBeInTheDocument();
+    expect(screen.getByText("approval-...cdef")).toBeInTheDocument();
+    expect(screen.queryByText("grant-1234567890abcdef")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看 grant-1234567890abcdef 放行详情" })).toBeInTheDocument();
   });
 
   it("shows an uncluttered empty table state for grant records", async () => {

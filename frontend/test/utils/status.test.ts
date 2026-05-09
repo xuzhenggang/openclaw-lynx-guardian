@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { isValidElement } from "react";
 
-import { getDecisionTone } from "../../src/utils/status";
+import {
+  getDecisionTone,
+  renderActionBadge,
+  renderPolicyDecisionBadge,
+} from "../../src/utils/status";
+
+function getBadgeTone(element: unknown): string | undefined {
+  if (!isValidElement(element)) {
+    return undefined;
+  }
+
+  return (element.props as { tone?: string }).tone;
+}
 
 describe("getDecisionTone", () => {
   it("treats block false warn decisions as warning instead of safe", () => {
@@ -73,5 +86,27 @@ describe("getDecisionTone", () => {
       eventSeverity: "info",
       enforcementAction: "block",
     })).toBe("error");
+  });
+});
+
+describe("status badge tones", () => {
+  it("renders allow and log-only actions as success", () => {
+    expect(getBadgeTone(renderActionBadge("allow"))).toBe("success");
+    expect(getBadgeTone(renderActionBadge("log_only"))).toBe("success");
+    expect(getBadgeTone(renderActionBadge("logOnly"))).toBe("success");
+  });
+
+  it("renders deny and block actions as danger", () => {
+    expect(getBadgeTone(renderActionBadge("deny"))).toBe("danger");
+    expect(getBadgeTone(renderActionBadge("block"))).toBe("danger");
+  });
+
+  it("renders allow policy decisions with logging as success", () => {
+    expect(getBadgeTone(renderPolicyDecisionBadge("allow", "allow"))).toBe(
+      "success",
+    );
+    expect(
+      getBadgeTone(renderPolicyDecisionBadge("allow_with_logging", "logOnly")),
+    ).toBe("success");
   });
 });

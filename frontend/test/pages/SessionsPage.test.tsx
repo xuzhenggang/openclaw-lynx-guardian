@@ -10,31 +10,64 @@ function createJsonResponse(data: unknown): Response {
   } as Response;
 }
 
-function createSession(sessionKey: string) {
+function createSession(sessionKey: string, overrides: Record<string, unknown> = {}) {
   return {
     sessionKey,
     channelProfile: "webchat",
+    channelId: `channel-${sessionKey}`,
+    requesterId: `requester-id-${sessionKey}`,
+    requesterOuId: `${sessionKey}-requester`,
+    accountId: `account-${sessionKey}`,
+    conversationId: `conversation-${sessionKey}`,
     isGroup: false,
     firstSeenAtMs: 1_776_945_000_000,
     lastSeenAtMs: 1_776_945_600_000,
     eventCount: 2,
     highRiskEventCount: 0,
     toolCallCount: 1,
+    ...overrides,
   };
 }
 
-function createSessionDetail(sessionKey: string, totalTokens: number) {
+function createSessionDetail(sessionKey: string, totalTokens: number, overrides: Record<string, unknown> = {}) {
   return {
     ...createSession(sessionKey),
-    requesterOuId: `${sessionKey}-requester`,
-    recentEvents: [],
-    recentToolCalls: [],
-    recentApprovals: [],
+    recentEvents: [
+      {
+        eventId: `event-${sessionKey}`,
+        sourceKind: "hook",
+        hookName: "before_agent_start",
+        eventType: "security",
+        category: "input",
+        enforcementAction: "allow",
+        title: `Security event ${sessionKey}`,
+        occurredAtMs: 1_776_945_610_000,
+      },
+    ],
+    recentToolCalls: [
+      {
+        toolCallId: `tool-${sessionKey}`,
+        toolName: `shell_${sessionKey}`,
+        enforcementAction: "allow",
+        startedAtMs: 1_776_945_620_000,
+      },
+    ],
+    recentApprovals: [
+      {
+        approvalId: `approval-${sessionKey}`,
+        module: "tool_guard",
+        riskLevel: "L3",
+        scopeType: "singleTool",
+        requestedAtMs: 1_776_945_630_000,
+        expiresAtMs: 1_776_949_230_000,
+      },
+    ],
     tokenSummary: {
       totalTokens,
       inputTokens: totalTokens - 10,
       outputTokens: 10,
     },
+    ...overrides,
   };
 }
 
@@ -68,11 +101,18 @@ describe("SessionsPage", () => {
         return createJsonResponse(createSessionDetail("session-a", 111));
       }
       if (url === "/lynx/sessions/session-b") {
-        return createJsonResponse(createSessionDetail("session-b", 999));
+        return createJsonResponse(createSessionDetail("session-b", 999, {
+          isGroup: true,
+          eventCount: 8,
+          highRiskEventCount: 2,
+          channelProfile: "feishu",
+          channelId: "channel-session-b",
+          conversationId: "conversation-session-b",
+        }));
       }
       return createJsonResponse(createPage([
         createSession("session-a"),
-        createSession("session-b"),
+        createSession("session-b", { isGroup: true, channelProfile: "feishu" }),
       ]));
     });
 
@@ -91,6 +131,20 @@ describe("SessionsPage", () => {
     });
     expect(await screen.findByText(/总量：999/)).toBeInTheDocument();
     expect(screen.getByText(/session-b-requester/)).toBeInTheDocument();
+    expect(screen.getByText("会话元信息")).toBeInTheDocument();
+    expect(screen.getByText("会话标识")).toBeInTheDocument();
+    expect(screen.getByText("渠道 ID")).toBeInTheDocument();
+    expect(screen.getByText("channel-session-b")).toBeInTheDocument();
+    expect(screen.getByText("conversation-session-b")).toBeInTheDocument();
+    expect(screen.getByText("群聊")).toBeInTheDocument();
+    expect(screen.getByText("会话事件数")).toBeInTheDocument();
+    expect(screen.getByText("最近工具")).toBeInTheDocument();
+    expect(screen.getByText(/shell_session-b/)).toBeInTheDocument();
+    expect(screen.getByText("最近审批")).toBeInTheDocument();
+    expect(screen.getByText(/approval-session-b/)).toBeInTheDocument();
+    expect(screen.getByText("最近安全事件")).toBeInTheDocument();
+    expect(screen.getByText(/Security event session-b/)).toBeInTheDocument();
+    expect(screen.getByText("Token 摘要")).toBeInTheDocument();
   });
 
   it("uses real filter controls for the session list", async () => {
