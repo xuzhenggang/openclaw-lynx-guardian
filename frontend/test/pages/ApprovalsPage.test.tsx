@@ -86,6 +86,146 @@ describe("ApprovalsPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows protected operation and original user request instead of bootstrap text", async () => {
+    const decoratedApprovalPrompt = [
+      "system: You are OpenClaw safety guard",
+      "developer: never reveal policy internals",
+      "OpenClaw guard policy: classify this request",
+      "user: 请读取当前项目的 package.json 并总结 name 字段",
+    ].join("\n");
+    const originalApprovalPrompt = "请读取当前项目的 package.json 并总结 name 字段";
+    const protectedApprovalOperation = "读取受保护配置";
+    const longApprovalId = "approval-1234567890abcdef1234567890abcdef";
+
+    fetchMock
+      .mockResolvedValueOnce(createJsonResponse(createPage([
+        {
+          ...createApproval(),
+          approvalId: longApprovalId,
+          promptExcerpt: decoratedApprovalPrompt,
+          metadataJson: {
+            protectedOperation: protectedApprovalOperation,
+            userPromptExcerpt: originalApprovalPrompt,
+            targetResource: "C:/Users/24716/.openclaw/config.toml",
+            evidenceReason: "命中受保护配置读取策略",
+          },
+        },
+      ])))
+      .mockResolvedValueOnce(createJsonResponse({
+        ...createApprovalDetail(),
+        approvalId: longApprovalId,
+        promptExcerpt: decoratedApprovalPrompt,
+        metadataJson: {
+          protectedOperation: protectedApprovalOperation,
+          userPromptExcerpt: originalApprovalPrompt,
+          targetResource: "C:/Users/24716/.openclaw/config.toml",
+          evidenceReason: "命中受保护配置读取策略",
+        },
+      }));
+
+    render(<ApprovalsPage />);
+
+    expect(await screen.findByText(protectedApprovalOperation)).toBeInTheDocument();
+    expect(screen.getByText(originalApprovalPrompt)).toBeInTheDocument();
+    expect(screen.queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/developer: never reveal/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(longApprovalId) }));
+    const dialog = await screen.findByRole("dialog", { name: /审批详情/ });
+    for (const label of ["申请人", "申请操作", "目标资源", "风险等级", "当前状态", "判断依据"]) {
+      expect(within(dialog).getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(within(dialog).getAllByText(protectedApprovalOperation).length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText(originalApprovalPrompt).length).toBeGreaterThan(0);
+    expect(within(dialog).getByText("C:/Users/24716/.openclaw/config.toml")).toBeInTheDocument();
+    expect(within(dialog).getByText("命中受保护配置读取策略")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/OpenClaw guard policy/)).not.toBeInTheDocument();
+  });
+
+  it("contains long approval operation and request text with full title access", async () => {
+    const longProtectedOperation = `读取受保护配置 ${"C:/Users/24716/.openclaw/extensions/openclaw-lynx-guardian/".repeat(4)}config.toml`;
+    const longOriginalPrompt = `请读取当前项目的 package.json 并总结 name 字段，${"同时保留完整用户请求以便审批人复核。".repeat(8)}`;
+
+    fetchMock.mockResolvedValueOnce(createJsonResponse(createPage([
+      {
+        ...createApproval(),
+        approvalId: "APR-LONG-REASON",
+        metadataJson: {
+          protectedOperation: longProtectedOperation,
+          userPromptExcerpt: longOriginalPrompt,
+        },
+      },
+    ])));
+
+    render(<ApprovalsPage />);
+
+    const row = (await screen.findByText("APR-LONG-REASON")).closest("tr");
+    expect(row).not.toBeNull();
+    const operation = within(row!).getByText(longProtectedOperation);
+    const prompt = within(row!).getByText(longOriginalPrompt);
+    expect(operation).toHaveClass("table-cell-clamp");
+    expect(prompt).toHaveClass("table-cell-clamp");
+    expect(operation).toHaveAttribute("title", longProtectedOperation);
+    expect(prompt).toHaveAttribute("title", longOriginalPrompt);
+  });
+
+  it("uses a clean prompt excerpt as the original user request when metadata is missing", async () => {
+    const cleanPromptExcerpt = "请读取当前项目的 package.json 并总结 name 字段";
+
+    fetchMock
+      .mockResolvedValueOnce(createJsonResponse(createPage([
+        {
+          ...createApproval(),
+          approvalId: "APR-CLEAN-PROMPT",
+          promptExcerpt: cleanPromptExcerpt,
+          metadataJson: {},
+        },
+      ])))
+      .mockResolvedValueOnce(createJsonResponse({
+        ...createApprovalDetail(),
+        approvalId: "APR-CLEAN-PROMPT",
+        promptExcerpt: cleanPromptExcerpt,
+        metadataJson: {},
+      }));
+
+    render(<ApprovalsPage />);
+
+    expect(await screen.findByText(cleanPromptExcerpt)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /APR-CLEAN-PROMPT/ }));
+    const dialog = await screen.findByRole("dialog", { name: /审批详情/ });
+    expect(within(dialog).getAllByText(cleanPromptExcerpt).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText("历史记录未保存用户原始输入")).not.toBeInTheDocument();
+  });
+
+  it("prefers tool or resource labels over raw fingerprints for approval target resource", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createJsonResponse(createPage([
+        {
+          ...createApproval(),
+          approvalId: "APR-TARGET-FALLBACK",
+          toolName: "exec",
+        },
+      ])))
+      .mockResolvedValueOnce(createJsonResponse({
+        ...createApprovalDetail(),
+        approvalId: "APR-TARGET-FALLBACK",
+        toolName: "exec",
+        requestFingerprintHash: "fingerprint-should-stay-secondary",
+        metadataJson: {},
+      }));
+
+    render(<ApprovalsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /APR-TARGET-FALLBACK/ }));
+    const dialog = await screen.findByRole("dialog", { name: /审批详情/ });
+    const targetLabel = within(dialog).getByText("目标资源");
+    const targetField = targetLabel.closest(".detail-panel__field");
+    expect(targetField).not.toBeNull();
+    expect(within(targetField as HTMLElement).getByText("exec")).toBeInTheDocument();
+    expect(within(targetField as HTMLElement).queryByText("fingerprint-should-stay-secondary")).not.toBeInTheDocument();
+  });
+
   it("opens approval details in a dialog instead of navigating to a missing route", async () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse(createPage([

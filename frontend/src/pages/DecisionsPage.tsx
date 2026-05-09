@@ -10,6 +10,7 @@ import { DataTable } from "../components/tables/DataTable";
 import { TablePagination } from "../components/tables/TablePagination";
 import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatInteger } from "../utils/format";
+import { MISSING_USER_PROMPT_TEXT, resolveUserVisiblePrompt } from "../utils/prompts";
 import { getDecisionTone, renderActionBadge, renderPolicyDecisionBadge, renderRiskBadge } from "../utils/status";
 
 interface DecisionFilters {
@@ -212,8 +213,47 @@ function formatDecisionReason(decision: DecisionResponse): string {
   return `这次被判为 ${formatRiskText(decision)}，因为命中了 ${formatMatchedModulesText(decision)}。${formatPlainDecisionReason(decision)}`;
 }
 
+function decisionMetadataString(decision: DecisionResponse, key: string): string | undefined {
+  const value = decision.metadataJson?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function formatDecisionDisplayReason(decision: DecisionResponse): string {
+  const resolved = resolveUserVisiblePrompt({
+    userPromptExcerpt: decisionMetadataString(decision, "reason")
+      ?? decisionMetadataString(decision, "decisionReason")
+      ?? decision.userMessage,
+  });
+  return resolved && resolved !== MISSING_USER_PROMPT_TEXT ? resolved : formatDecisionReason(decision);
+}
+
 function formatDecisionStage(stage: string): string {
   return STAGE_LABELS[stage] ?? stage;
+}
+
+function formatDecisionActionText(action: string): string {
+  return ACTION_OPTIONS.find((option) => option.value === action)?.label ?? action;
+}
+
+function formatDecisionTarget(decision: DecisionResponse): string {
+  return decisionMetadataString(decision, "targetResource")
+    ?? decisionMetadataString(decision, "target")
+    ?? decisionMetadataString(decision, "targetUri")
+    ?? decisionMetadataString(decision, "resource")
+    ?? "目标未记录";
+}
+
+function formatDecisionHeroSummary(decision: DecisionResponse): string {
+  const reason = formatDecisionDisplayReason(decision);
+  const reasonSummary = reason.length > 80 ? `${reason.slice(0, 80)}...` : reason;
+  return [
+    `${formatDecisionStage(decision.stage)}阶段`,
+    formatMatchedModulesText(decision),
+    formatRiskText(decision),
+    formatDecisionActionText(decision.action),
+    formatDecisionTarget(decision),
+    reasonSummary,
+  ].filter(Boolean).join(" · ");
 }
 
 function formatDetailJson(value: unknown): string {
@@ -376,7 +416,14 @@ export function DecisionsPage() {
                 <span>{formatDecisionStage(decision.stage)}</span>
               </div>
             ),
-            reason: <span className="table-cell-clamp table-cell-clamp--3">{formatDecisionReason(decision)}</span>,
+            reason: (
+              <span
+                className="table-cell-clamp table-cell-clamp--3"
+                title={formatDecisionDisplayReason(decision)}
+              >
+                {formatDecisionDisplayReason(decision)}
+              </span>
+            ),
             risk: renderRiskBadge(decision.riskLevel),
             action: renderActionBadge(decision.action),
             approval: formatApprovalState(decision),
@@ -406,7 +453,7 @@ export function DecisionsPage() {
         open={Boolean(selectedDecision)}
         size="wide"
         title="裁决详情"
-        subtitle={selectedDecision?.decisionId ?? "查看裁决证据、仲裁器和评分轨迹。"}
+        subtitle={selectedDecision ? formatDecisionHeroSummary(selectedDecision) : "查看裁决证据、仲裁器和评分轨迹。"}
         onClose={() => setSelectedDecision(null)}
       >
         {selectedDecision ? (
@@ -414,7 +461,9 @@ export function DecisionsPage() {
             <section className="audit-detail-dialog__hero">
               <div className="audit-detail-dialog__heroText">
                 <p className="audit-detail-dialog__eyebrow">裁决概览</p>
-                <p className="audit-detail-dialog__heroSubtitle">{selectedDecision.decisionId}</p>
+                <p className="audit-detail-dialog__heroSubtitle" title={formatDecisionHeroSummary(selectedDecision)}>
+                  {formatDecisionHeroSummary(selectedDecision)}
+                </p>
               </div>
               <div className="audit-detail-dialog__chips" aria-label="裁决概览标签">
                 <span className="audit-detail-dialog__chip">

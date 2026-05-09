@@ -17,6 +17,7 @@ import { TablePagination } from "../components/tables/TablePagination";
 import { paginateMockPage, usePagedListResource } from "../hooks/usePagedListResource";
 import { formatCompactId, formatTimestamp } from "../utils/format";
 import { formatQaRecordId } from "../utils/qa-records";
+import { resolveUserVisiblePrompt } from "../utils/prompts";
 import { renderRiskBadge, renderStateBadge } from "../utils/status";
 
 interface ApprovalFilters {
@@ -85,7 +86,7 @@ function formatApprovalModuleWithCode(module: string): string {
   return label === module ? module : `${label}（${module}）`;
 }
 
-function formatApprovalInterceptReason(approval: ApprovalListItemDto): string {
+function formatApprovalInterceptReason(approval: ApprovalListItemDto | ApprovalDetailDto): string {
   if (approval.riskLevel === "L4") {
     return `${formatApprovalRiskLevel(approval.riskLevel)} 硬拒绝：${formatApprovalModule(approval.module)}，不能在本地审批放行。`;
   }
@@ -131,6 +132,54 @@ function formatList(values: string[] | undefined): string {
 function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
   const value = metadata?.[key];
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function approvalMetadata(approval: ApprovalListItemDto | ApprovalDetailDto): Record<string, unknown> | undefined {
+  return (approval as (ApprovalListItemDto | ApprovalDetailDto) & { metadataJson?: Record<string, unknown> }).metadataJson;
+}
+
+function formatProtectedOperation(approval: ApprovalListItemDto | ApprovalDetailDto): string {
+  const metadata = approvalMetadata(approval);
+  return metadataString(metadata, "protectedOperation")
+    ?? metadataString(metadata, "operation")
+    ?? metadataString(metadata, "operationSummary")
+    ?? formatApprovalInterceptReason(approval);
+}
+
+function formatOriginalUserPrompt(approval: ApprovalListItemDto | ApprovalDetailDto): string {
+  const metadata = approvalMetadata(approval);
+  return resolveUserVisiblePrompt({
+    prompt: approval.promptExcerpt,
+    userPromptExcerpt: metadataString(metadata, "userPromptExcerpt") ?? approval.promptExcerpt,
+    userPrompt: metadataString(metadata, "userPrompt"),
+    detailJson: metadata,
+  });
+}
+
+function formatTargetResource(approval: ApprovalListItemDto | ApprovalDetailDto): string {
+  const metadata = approvalMetadata(approval);
+  const resourceScope = metadataRecord(metadata, "resourceScope")
+    ?? metadataRecord(metadata, "grantScope")
+    ?? metadataRecord(metadata, "scope");
+  const scopedPath = metadataString(resourceScope, "path")
+    ?? metadataString(resourceScope, "target")
+    ?? metadataString(resourceScope, "resource");
+  return metadataString(metadata, "targetResource")
+    ?? metadataString(metadata, "resource")
+    ?? metadataString(metadata, "targetPath")
+    ?? metadataString(metadata, "target")
+    ?? scopedPath
+    ?? approval.toolName
+    ?? approval.requestFingerprintHash
+    ?? "暂无目标资源";
+}
+
+function formatApprovalEvidenceReason(approval: ApprovalListItemDto | ApprovalDetailDto): string {
+  const metadata = approvalMetadata(approval);
+  return metadataString(metadata, "evidenceReason")
+    ?? metadataString(metadata, "reason")
+    ?? metadataString(metadata, "auditReason")
+    ?? formatApprovalInterceptReason(approval);
 }
 
 function metadataRecord(metadata: Record<string, unknown> | undefined, key: string): Record<string, unknown> | undefined {
@@ -372,8 +421,12 @@ export function ApprovalsPage() {
             ),
             reason: (
               <div className="row-stack table-reason-cell">
-                <strong>{formatApprovalInterceptReason(approval)}</strong>
-                <span>{approval.promptExcerpt ?? "暂无审批摘要"}</span>
+                <strong className="table-cell-clamp table-cell-clamp--2" title={formatProtectedOperation(approval)}>
+                  {formatProtectedOperation(approval)}
+                </strong>
+                <span className="table-cell-clamp table-cell-clamp--2" title={formatOriginalUserPrompt(approval)}>
+                  {formatOriginalUserPrompt(approval)}
+                </span>
               </div>
             ),
             requester: approval.requesterOuId ?? "未知申请人",
@@ -432,7 +485,9 @@ export function ApprovalsPage() {
             <section className="audit-detail-dialog__hero">
               <div className="audit-detail-dialog__heroText">
                 <p className="audit-detail-dialog__eyebrow">审批概览</p>
-                <p className="audit-detail-dialog__heroSubtitle">{formatApprovalInterceptReason(selectedDetail)}</p>
+                <p className="audit-detail-dialog__heroSubtitle" title={formatProtectedOperation(selectedDetail)}>
+                  {formatProtectedOperation(selectedDetail)}
+                </p>
               </div>
               <div className="audit-detail-dialog__chips" aria-label="审批概览标签">
                 <span className="audit-detail-dialog__chip">
@@ -483,6 +538,31 @@ export function ApprovalsPage() {
                   <p className="approval-action-panel__message approval-action-panel__message--danger">{resolveError}</p>
                 ) : null}
               </section>
+            </section>
+
+            <section className="audit-detail-dialog__section">
+              <div className="panel__header audit-detail-dialog__sectionHeader">
+                <div>
+                  <h2 className="panel__title">审批说明</h2>
+                  <p className="panel__subtitle">优先展示人能读懂的申请对象、受保护操作、目标资源和判断依据。</p>
+                </div>
+              </div>
+              <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
+                {[
+                  { label: "申请人", value: selectedDetail.requesterOuId ?? "未知申请人" },
+                  { label: "申请操作", value: formatProtectedOperation(selectedDetail) },
+                  { label: "目标资源", value: formatTargetResource(selectedDetail) },
+                  { label: "风险等级", value: formatApprovalRiskLevel(selectedDetail.riskLevel) },
+                  { label: "当前状态", value: resolveApprovalState(selectedDetail) },
+                  { label: "判断依据", value: formatApprovalEvidenceReason(selectedDetail) },
+                  { label: "原始用户请求", value: formatOriginalUserPrompt(selectedDetail) },
+                ].map((field) => (
+                  <div key={field.label} className="detail-panel__field">
+                    <dt>{field.label}</dt>
+                    <dd title={typeof field.value === "string" ? field.value : undefined}>{field.value}</dd>
+                  </div>
+                ))}
+              </dl>
             </section>
 
             <section className="audit-detail-dialog__section">
