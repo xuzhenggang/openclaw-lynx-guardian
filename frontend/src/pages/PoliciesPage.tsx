@@ -1,5 +1,5 @@
 import type { PageResponse } from "@lynx/local-console-shared";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Button, Input } from "antd";
 
 import {
@@ -127,6 +127,7 @@ export function PoliciesPage() {
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [activeList, setActiveList] = useState<PolicyListKind>("resource");
+  const [stableList, setStableList] = useState<PolicyListKind>("resource");
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [dialog, setDialog] = useState<PolicyDialog>(null);
   const [resourcePath, setResourcePath] = useState("");
@@ -135,6 +136,7 @@ export function PoliciesPage() {
   const [patternType, setPatternType] = useState<PolicyRule["patternType"]>("literal");
   const [pattern, setPattern] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const listRequestSeq = useRef(0);
 
   async function loadOverview(): Promise<void> {
     setOverviewLoading(true);
@@ -158,11 +160,20 @@ export function PoliciesPage() {
 
   const policyList = usePagedListResource<PolicyListItem, PolicyListQuery>({
     loadPage: async (query) => {
+      const requestSeq = listRequestSeq.current + 1;
+      listRequestSeq.current = requestSeq;
+      const requestList = activeList;
       if (activeList === "resource") {
         const page = await listProtectedResources(query);
+        if (listRequestSeq.current === requestSeq) {
+          setStableList(requestList);
+        }
         return page as PageResponse<PolicyListItem>;
       }
       const page = await listPolicyRules({ ...query, kind: activeList });
+      if (listRequestSeq.current === requestSeq) {
+        setStableList(requestList);
+      }
       return page as PageResponse<PolicyListItem>;
     },
     query: activeQuery,
@@ -182,6 +193,8 @@ export function PoliciesPage() {
     [overview.rules],
   );
   const activeConfig = POLICY_LISTS[activeList];
+  const visibleList = policyList.loading && policyList.items.length > 0 ? stableList : activeList;
+  const visibleConfig = POLICY_LISTS[visibleList];
 
   function refreshActiveList(): void {
     setListRefreshKey((current) => current + 1);
@@ -301,7 +314,7 @@ export function PoliciesPage() {
       ? "正在加载策略配置概览"
       : "目录防护、黑名单和白名单分开查看；三类列表都走后端分页，白名单不能覆盖 L4 硬拒绝。";
 
-  const rows = activeList === "resource"
+  const rows = visibleList === "resource"
     ? policyList.items.filter(isProtectedResource).map((resource) => ({
       id: resource.resourceId,
       path: resource.path,
@@ -318,7 +331,7 @@ export function PoliciesPage() {
         </Button>
       ),
     }))
-    : policyList.items.filter((item): item is PolicyRule => isPolicyRule(item) && item.kind === activeList).map((rule) => ({
+    : policyList.items.filter((item): item is PolicyRule => isPolicyRule(item) && item.kind === visibleList).map((rule) => ({
       id: rule.ruleId,
       scope: formatScope(rule.scope),
       patternType: formatPatternType(rule.patternType),
@@ -337,7 +350,7 @@ export function PoliciesPage() {
       ),
     }));
 
-  const columns = activeList === "resource"
+  const columns = visibleList === "resource"
     ? [
       { key: "path", label: "目录路径", maxWidth: 520, minWidth: 300, width: 420 },
       { key: "preset", label: "权限预设", maxWidth: 160, minWidth: 112, width: 128 },
@@ -494,20 +507,20 @@ export function PoliciesPage() {
 
         <div className="table-panel__header">
           <div>
-            <h2 className="panel__title">{activeConfig.heading}</h2>
-            <p className="panel__subtitle">{activeConfig.description}</p>
+            <h2 className="panel__title">{visibleConfig.heading}</h2>
+            <p className="panel__subtitle">{visibleConfig.description}</p>
           </div>
           <Button
             type="primary"
             onClick={() => {
-              if (activeList === "resource") {
+              if (visibleList === "resource") {
                 openResourceDialog();
                 return;
               }
-              openRuleDialog(activeList);
+              openRuleDialog(visibleList);
             }}
           >
-            {activeConfig.addLabel}
+            {visibleConfig.addLabel}
           </Button>
         </div>
 
@@ -517,10 +530,11 @@ export function PoliciesPage() {
           error={policyList.error}
           loading={policyList.loading}
           loadingLabel={`正在加载${activeConfig.heading}`}
+          refreshingLabel={`正在加载${activeConfig.heading}`}
           onRetry={policyList.retry}
           rows={rows}
         />
-        <TablePagination {...policyList.paginationProps} ariaLabel={activeConfig.paginationLabel} />
+        <TablePagination {...policyList.paginationProps} ariaLabel={visibleConfig.paginationLabel} />
       </section>
     </div>
   );

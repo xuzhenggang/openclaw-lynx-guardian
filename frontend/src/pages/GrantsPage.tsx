@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Button, Card, Input, Typography } from "antd";
 
 import { listGrants, type Grant, type GrantListQuery } from "../api/grants";
+import { fetchJson } from "../api/client";
 import { ModalDialog } from "../components/feedback/ModalDialog";
 import { StatusBadge } from "../components/feedback/StatusBadge";
 import { PageHeader } from "../components/layout/PageHeader";
@@ -11,13 +12,45 @@ import { usePagedListResource } from "../hooks/usePagedListResource";
 import { formatCompactId, formatInteger } from "../utils/format";
 
 const SCOPE_LABELS: Record<string, string> = {
+  approvedRiskLevel: "授权风险等级",
+  decision: "决策结果",
   expiresAt: "有效期",
-  operationKind: "操作",
+  grantWindowMs: "有效窗口",
+  grantType: "授权范围",
+  operationKind: "操作类型",
   path: "路径",
   riskLevel: "风险等级",
+  scopeType: "授权范围",
   sessionKey: "会话",
+  targetHash: "目标哈希",
+  targetKind: "目标类型",
+  targetSummary: "目标摘要",
   tool: "工具",
   toolName: "工具",
+};
+
+interface GrantExecutionChain {
+  approvalId?: string;
+  chainId?: string;
+  conversationId?: string;
+  explanation?: string;
+  grantId?: string;
+  sessionKey?: string;
+}
+
+interface RelatedToolCall {
+  errorText?: string;
+  metadataJson?: Record<string, unknown>;
+  paramSummary?: string;
+  resultExcerpt?: string;
+  resultStatus?: string;
+  toolCallId?: string;
+  toolName?: string;
+}
+
+type GrantWithDetail = Grant & {
+  executionChain?: GrantExecutionChain;
+  relatedToolCalls?: RelatedToolCall[];
 };
 
 function formatIsoTime(value: string | undefined): string {
@@ -48,52 +81,131 @@ function buildGrantQuery(filters: GrantFilters): Omit<GrantListQuery, "pageNum" 
   };
 }
 
-function formatScopeEntries(scope: Record<string, unknown>): Array<{ label: string; value: string }> {
+function formatScopeValue(key: string, value: unknown): string {
+  if (key === "grantWindowMs" && typeof value === "number") {
+    const seconds = Math.round(value / 1000);
+    if (seconds >= 60) {
+      return `${Math.round(seconds / 60)} 分钟`;
+    }
+    return `${seconds} 秒`;
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function formatScopeEntries(scope: Record<string, unknown>): Array<{ key: string; label: string; value: string }> {
   return Object.entries(scope).map(([key, value]) => ({
-    label: SCOPE_LABELS[key] ?? key,
-    value: String(value),
+    key,
+    label: SCOPE_LABELS[key] ?? "其他范围条件",
+    value: formatScopeValue(key, value),
   }));
 }
 
-function buildExecutionLinks(grant: Grant): string[] {
+function buildExecutionLinks(grant: GrantWithDetail): string[] {
+  const chain = grant.executionChain;
   return [
-    grant.chainId ? `链路：${grant.chainId}` : undefined,
-    grant.sessionKey ? `会话：${grant.sessionKey}` : undefined,
-    grant.approvalId ? `审批：${grant.approvalId}` : undefined,
+    chain?.explanation ? `关系说明：${chain.explanation}` : undefined,
+    (chain?.chainId || grant.chainId) ? `链路：${chain?.chainId || grant.chainId}` : undefined,
+    (chain?.sessionKey || grant.sessionKey) ? `会话：${chain?.sessionKey || grant.sessionKey}` : undefined,
+    (chain?.approvalId || grant.approvalId) ? `审批：${chain?.approvalId || grant.approvalId}` : undefined,
     grant.toolName ? `工具：${grant.toolName}` : undefined,
     grant.targetKind || grant.targetHash ? `目标：${[grant.targetKind, grant.targetHash].filter(Boolean).join(" / ")}` : undefined,
   ].filter((item): item is string => Boolean(item));
 }
 
+function metadataString(call: RelatedToolCall, key: string): string | undefined {
+  const value = call.metadataJson?.[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function toolCallCommand(call: RelatedToolCall): string {
+  return metadataString(call, "command")
+    ?? metadataString(call, "operation")
+    ?? call.paramSummary
+    ?? call.toolName
+    ?? call.toolCallId
+    ?? "未知工具调用";
+}
+
+function toolCallResult(call: RelatedToolCall): string {
+  return call.resultExcerpt
+    ?? call.errorText
+    ?? call.resultStatus
+    ?? "历史记录未保存结果摘要";
+}
+
 export function GrantsPage() {
   const [draftFilters, setDraftFilters] = useState<GrantFilters>(EMPTY_FILTERS);
   const [appliedQuery, setAppliedQuery] = useState<Omit<GrantListQuery, "pageNum" | "pageSize">>({});
-  const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
+  const [selectedGrant, setSelectedGrant] = useState<GrantWithDetail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailRequestSeq = useRef(0);
+
+  function clearGrantDetail(): void {
+    detailRequestSeq.current += 1;
+    setSelectedGrant(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
+
   const { items, loading, error, paginationProps, resetPaging, retry } = usePagedListResource<
     Grant,
     GrantListQuery
   >({
     loadPage: listGrants,
-    onPageBoundaryChange: () => setSelectedGrant(null),
+    onPageBoundaryChange: clearGrantDetail,
     query: appliedQuery,
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    setSelectedGrant(null);
+    clearGrantDetail();
     resetPaging();
     setAppliedQuery(buildGrantQuery(draftFilters));
   }
 
   function handleReset(): void {
     setDraftFilters(EMPTY_FILTERS);
-    setSelectedGrant(null);
+    clearGrantDetail();
     resetPaging();
     setAppliedQuery({});
   }
 
+  async function openGrantDetail(grant: GrantWithDetail): Promise<void> {
+    const requestSeq = detailRequestSeq.current + 1;
+    detailRequestSeq.current = requestSeq;
+    setSelectedGrant(grant);
+    setDetailError(null);
+    if (grant.executionChain || grant.relatedToolCalls) {
+      setDetailLoading(false);
+      return;
+    }
+    setDetailLoading(true);
+    try {
+      const detail = await fetchJson<GrantWithDetail>(`/grants/${encodeURIComponent(grant.grantId)}`);
+      if (detailRequestSeq.current === requestSeq) {
+        setSelectedGrant((current) => current?.grantId === grant.grantId ? detail : current);
+        setDetailError(null);
+      }
+    } catch (loadError) {
+      if (detailRequestSeq.current === requestSeq) {
+        const message = loadError instanceof Error ? loadError.message : "无法读取关联执行链路和工具调用";
+        setDetailError(`详情加载失败：${message}`);
+        setSelectedGrant((current) => current?.grantId === grant.grantId ? grant : current);
+      }
+    } finally {
+      if (detailRequestSeq.current === requestSeq) {
+        setDetailLoading(false);
+      }
+    }
+  }
+
   const activeCount = items.filter((item) => !item.revokedAt).length;
   const revokedCount = items.length - activeCount;
+  const selectedScopeEntries = selectedGrant ? formatScopeEntries(selectedGrant.resourceScope) : [];
   const statusDescription = error
     ? `放行记录加载失败：${error}`
     : loading
@@ -260,7 +372,9 @@ export function GrantsPage() {
                 aria-label={`查看 ${item.grantId} 放行详情`}
                 className="btn btn--compact"
                 type="button"
-                onClick={() => setSelectedGrant(item)}
+                onClick={() => {
+                  void openGrantDetail(item);
+                }}
               >
                 详情
               </button>
@@ -278,7 +392,7 @@ export function GrantsPage() {
         subtitle={
           selectedGrant?.grantId ?? "查看放行记录的适用范围和撤销上下文。"
         }
-        onClose={() => setSelectedGrant(null)}
+        onClose={clearGrantDetail}
       >
         {selectedGrant ? (
           <div className="audit-detail-dialog">
@@ -376,11 +490,11 @@ export function GrantsPage() {
                 </div>
               </div>
               <dl className="detail-panel__grid audit-detail-dialog__summary-grid">
-                {formatScopeEntries(selectedGrant.resourceScope).length > 0 ? (
-                  formatScopeEntries(selectedGrant.resourceScope).map((field) => (
-                    <div className="detail-panel__field" key={field.label}>
+                {selectedScopeEntries.length > 0 ? (
+                  selectedScopeEntries.map((field) => (
+                    <div className="detail-panel__field" key={field.key}>
                       <dt>{field.label}</dt>
-                      <dd>{field.value}</dd>
+                      <dd className="grant-scope-value" title={field.value}>{field.value}</dd>
                     </div>
                   ))
                 ) : (
@@ -391,9 +505,62 @@ export function GrantsPage() {
                 )}
                 <div className="detail-panel__field">
                   <dt>撤销原因</dt>
-                  <dd>{selectedGrant.revokedReason || "暂无"}</dd>
+                  <dd title={selectedGrant.revokedReason || "暂无"}>{selectedGrant.revokedReason || "暂无"}</dd>
                 </div>
               </dl>
+            </section>
+
+            <section className="audit-detail-dialog__section">
+              <div className="panel__header audit-detail-dialog__sectionHeader">
+                <div>
+                  <h3 className="panel__title">关联工具调用</h3>
+                  <p className="panel__subtitle">每张卡片对应一次与该放行记录相关的工具执行。</p>
+                </div>
+              </div>
+              <div className="grant-related-tool-grid">
+                {detailError ? (
+                  <p className="grant-related-tool-card__error" role="alert">
+                    {detailError}
+                  </p>
+                ) : detailLoading ? (
+                  <p className="grant-related-tool-card__empty" role="status">正在加载详情</p>
+                ) : (selectedGrant.relatedToolCalls ?? []).length > 0 ? (
+                  (selectedGrant.relatedToolCalls ?? []).map((call, index) => {
+                    const command = toolCallCommand(call);
+                    const result = toolCallResult(call);
+                    const key = call.toolCallId ?? `${command}-${index}`;
+                    return (
+                      <article
+                        className="grant-related-tool-card"
+                        data-testid="grant-related-tool-card"
+                        key={key}
+                      >
+                        <div className="grant-related-tool-card__header">
+                          <span className="grant-related-tool-card__tool" title={call.toolName ?? "未知工具"}>
+                            {call.toolName ?? "未知工具"}
+                          </span>
+                          <span className="grant-related-tool-card__status" title={call.resultStatus ?? "未记录状态"}>
+                            {call.resultStatus ?? "未记录状态"}
+                          </span>
+                        </div>
+                        <p className="grant-related-tool-card__command" title={command}>
+                          {command}
+                        </p>
+                        <p className="grant-related-tool-card__result" title={result}>
+                          {result}
+                        </p>
+                        {call.toolCallId ? (
+                          <p className="grant-related-tool-card__id" title={call.toolCallId}>
+                            {formatCompactId(call.toolCallId)}
+                          </p>
+                        ) : null}
+                      </article>
+                    );
+                  })
+                ) : (
+                  <p className="grant-related-tool-card__empty">暂无关联工具调用</p>
+                )}
+              </div>
             </section>
           </div>
         ) : null}

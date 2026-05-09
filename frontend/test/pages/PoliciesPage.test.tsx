@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PoliciesPage } from "../../src/pages/PoliciesPage";
@@ -111,6 +111,14 @@ function stubPolicyEndpoints(fetchMock?: ReturnType<typeof vi.fn>) {
 
   vi.stubGlobal("fetch", mock as unknown as typeof fetch);
   return mock;
+}
+
+function deferredResponse<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
 describe("PoliciesPage", () => {
@@ -266,5 +274,85 @@ describe("PoliciesPage", () => {
         }),
       );
     });
+  });
+
+  it("keeps the previous policy list visible with a loading status during tab switches", async () => {
+    const blacklistDeferred = deferredResponse<Response>();
+    const fetchMock = vi.fn(async (url: string) => {
+      const requestUrl = new URL(String(url), "http://localhost");
+      if (requestUrl.pathname.endsWith("/policies")) {
+        return Response.json({
+          currentVersion: 9,
+          protectedResources: [protectedResource],
+          rules: [blacklistRule, allowlistRule],
+        });
+      }
+      if (requestUrl.pathname.endsWith("/protected-resources")) {
+        return Response.json(page([protectedResource]));
+      }
+      if (requestUrl.pathname.endsWith("/policy-rules") && requestUrl.searchParams.get("kind") === "blacklist") {
+        return blacklistDeferred.promise;
+      }
+      return Response.json(page([allowlistRule]));
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    render(<PoliciesPage />);
+
+    expect(await screen.findByText("C:\\Users\\alice\\Secrets")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "黑名单" }));
+
+    expect(screen.getByText("C:\\Users\\alice\\Secrets")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("正在加载");
+
+    blacklistDeferred.resolve(Response.json(page([blacklistRule])));
+    expect(await screen.findByText("Invoke-Expression")).toBeInTheDocument();
+  });
+
+  it("ignores stale policy tab responses that resolve out of order", async () => {
+    const blacklistDeferred = deferredResponse<Response>();
+    const allowlistDeferred = deferredResponse<Response>();
+    const fetchMock = vi.fn(async (url: string) => {
+      const requestUrl = new URL(String(url), "http://localhost");
+      if (requestUrl.pathname.endsWith("/policies")) {
+        return Response.json({
+          currentVersion: 9,
+          protectedResources: [protectedResource],
+          rules: [blacklistRule, allowlistRule],
+        });
+      }
+      if (requestUrl.pathname.endsWith("/protected-resources")) {
+        return Response.json(page([protectedResource]));
+      }
+      if (requestUrl.pathname.endsWith("/policy-rules") && requestUrl.searchParams.get("kind") === "blacklist") {
+        return blacklistDeferred.promise;
+      }
+      if (requestUrl.pathname.endsWith("/policy-rules") && requestUrl.searchParams.get("kind") === "allowlist") {
+        return allowlistDeferred.promise;
+      }
+      return Response.json(page([]));
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    render(<PoliciesPage />);
+
+    expect(await screen.findByText("C:\\Users\\alice\\Secrets")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "黑名单" }));
+    fireEvent.click(screen.getByRole("tab", { name: "白名单" }));
+
+    await act(async () => {
+      blacklistDeferred.resolve(Response.json(page([blacklistRule])));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("C:\\Users\\alice\\Secrets")).toBeInTheDocument();
+    expect(screen.queryByText("Invoke-Expression")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("正在加载白名单列表");
+
+    allowlistDeferred.resolve(Response.json(page([allowlistRule])));
+    expect(await screen.findByText("npm test")).toBeInTheDocument();
+    expect(screen.queryByText("C:\\Users\\alice\\Secrets")).not.toBeInTheDocument();
   });
 });

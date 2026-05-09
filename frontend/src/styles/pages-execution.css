@@ -32,12 +32,87 @@
   border-top: 0;
 }
 
-.detail-panel dd {
+.detail-panel__field dd {
   margin: 0;
   color: var(--text-soft);
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.grant-scope-value {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.grant-related-tool-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.grant-related-tool-card {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel-soft);
+}
+
+.grant-related-tool-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.grant-related-tool-card__tool,
+.grant-related-tool-card__status {
+  min-width: 0;
+  color: var(--muted-strong);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grant-related-tool-card__command,
+.grant-related-tool-card__result,
+.grant-related-tool-card__id,
+.grant-related-tool-card__empty,
+.grant-related-tool-card__error {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.grant-related-tool-card__command {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.grant-related-tool-card__result {
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.grant-related-tool-card__id,
+.grant-related-tool-card__empty,
+.grant-related-tool-card__error {
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+}
+
+.grant-related-tool-card__error {
+  color: var(--danger);
+  font-weight: 800;
 }
 
 .list-item {
