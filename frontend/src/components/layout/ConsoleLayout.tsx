@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 
 import type { ConsoleThemeMode } from "../../app/App";
 import { GlobalLoadingIndicator } from "../feedback/GlobalLoadingIndicator";
+import { PageTransitionOverlay } from "../feedback/PageTransitionOverlay";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
 
@@ -53,6 +54,7 @@ export function ConsoleLayout({
         />
         <GlobalLoadingIndicator />
         <div className="console-content">{children}</div>
+        <PageTransitionOverlay />
       </main>
     </div>
   );

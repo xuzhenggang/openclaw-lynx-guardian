@@ -32,6 +32,15 @@ function extractCssRules(css: string, selector: string): string[] {
   return [...css.matchAll(new RegExp(`(?:^|\\n)${escapedSelector}\\s*{([^}]*)}`, "g"))].map((match) => match[1]);
 }
 
+function extractRgbaAlphas(css: string, customProperty: string): number[] {
+  const escapedProperty = customProperty.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [...css.matchAll(new RegExp(`${escapedProperty}: rgba\\([^,]+,\\s*[^,]+,\\s*[^,]+,\\s*([0-9.]+)\\);`, "g"))];
+  if (matches.length === 0) {
+    throw new Error(`Missing rgba custom property ${customProperty}`);
+  }
+  return matches.map((match) => Number(match[1]));
+}
+
 function installStyle(css: string): () => void {
   const style = document.createElement("style");
   style.textContent = css;
@@ -76,6 +85,31 @@ describe("theme styles", () => {
     expect(dividerRule).toContain("align-items: center;");
     expect(eyebrowRule).toContain("display: inline-flex;");
     expect(eyebrowRule).toContain("align-items: center;");
+  });
+
+  it("keeps the global loading bar from occupying the page content row", async () => {
+    const css = await readThemeCss();
+    const mainRule = extractCssRule(css, ".console-main");
+    const topbarRule = extractCssRule(css, ".topbar");
+    const loadingRule = extractCssRule(css, ".global-loading");
+    const contentRule = extractCssRule(css, ".console-content");
+
+    expect(mainRule).toContain("grid-template-rows: 48px auto minmax(0, 1fr);");
+    expect(mainRule).toContain('grid-template-areas: "topbar" "loading" "content";');
+    expect(topbarRule).toContain("grid-area: topbar;");
+    expect(loadingRule).toContain("grid-area: loading;");
+    expect(contentRule).toContain("grid-area: content;");
+  });
+
+  it("keeps the route transition overlay translucent across themes", async () => {
+    const css = await readThemeCss();
+    const overlayAlphas = extractRgbaAlphas(css, "--transition-overlay-bg");
+    const panelAlphas = extractRgbaAlphas(css, "--transition-overlay-panel-bg");
+
+    expect(overlayAlphas).toHaveLength(3);
+    expect(Math.max(...overlayAlphas)).toBeLessThanOrEqual(0.48);
+    expect(overlayAlphas.slice(1).every((alpha) => alpha <= 0.36)).toBe(true);
+    expect(Math.max(...panelAlphas)).toBeLessThanOrEqual(0.82);
   });
 
   it("keeps filter inputs vertically centered inside their 40px border box", async () => {

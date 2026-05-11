@@ -138,6 +138,10 @@ function approvalMetadata(approval: ApprovalListItemDto | ApprovalDetailDto): Re
   return (approval as (ApprovalListItemDto | ApprovalDetailDto) & { metadataJson?: Record<string, unknown> }).metadataJson;
 }
 
+function approvalRequestFingerprintHash(approval: ApprovalListItemDto | ApprovalDetailDto): string | undefined {
+  return "requestFingerprintHash" in approval ? approval.requestFingerprintHash : undefined;
+}
+
 function formatProtectedOperation(approval: ApprovalListItemDto | ApprovalDetailDto): string {
   const metadata = approvalMetadata(approval);
   return metadataString(metadata, "protectedOperation")
@@ -170,7 +174,7 @@ function formatTargetResource(approval: ApprovalListItemDto | ApprovalDetailDto)
     ?? metadataString(metadata, "target")
     ?? scopedPath
     ?? approval.toolName
-    ?? approval.requestFingerprintHash
+    ?? approvalRequestFingerprintHash(approval)
     ?? "暂无目标资源";
 }
 
