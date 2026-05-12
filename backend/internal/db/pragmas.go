@@ -5,7 +5,7 @@ import "database/sql"
 // applyPragmas mirrors backend/src/db/pragmas.ts.
 func applyPragmas(database *sql.DB) error {
 	stmts := []string{
-		"PRAGMA journal_mode = WAL",
+		"PRAGMA journal_mode = DELETE",
 		"PRAGMA synchronous = NORMAL",
 		"PRAGMA foreign_keys = OFF",
 		"PRAGMA busy_timeout = 5000",
