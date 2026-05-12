@@ -291,6 +291,7 @@ export function buildGuardContext(config: any, event: any, ctx: any): GuardConte
     verifiedOwner,
     requesterId,
     channel,
+    promptText: normalizeString(ctx?.promptText ?? event?.promptText),
     trustedInternalProtectedRead: isTrustedInternalProtectedRead(event, ctx),
     trustedManagedLynxCheckToolCall: isTrustedManagedLynxCheckToolCall(event, ctx),
     trustedManagedLynxCheckOutput: ctx?.managedLynxCheckRun === true && isTrustedManagedLynxCheckReportText(event),

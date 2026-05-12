@@ -1725,6 +1725,7 @@ export default function setup(api: OpenClawPluginApi) {
             : ctx?.verifiedOwner,
           managedLynxCheckRun: Boolean(activeManagedLynxCheckRun),
           managedLynxCheckPreauthorized,
+          promptText: runApprovalContext?.promptText,
         };
         log.info(`[lynx-guardian] before_tool_call managedGuardContext=${JSON.stringify(managedGuardContext)}`);
         log.info(`[lynx-guardian] before_tool_call managedLynxCheckPreauthorized=${JSON.stringify(managedLynxCheckPreauthorized)}`);

@@ -69,6 +69,7 @@ export interface GuardContext {
   verifiedOwner?: boolean;
   requesterId?: string;
   channel?: string;
+  promptText?: string;
   trustedInternalProtectedRead?: boolean;
   trustedManagedLynxCheckToolCall?: boolean;
   trustedManagedLynxCheckOutput?: boolean;
@@ -863,11 +864,17 @@ const OPENCLAW_UPGRADE_MAINTENANCE_PROTECTED_LABELS = new Set([
   LYNX_OWNED_SKILL_LABEL,
 ]);
 
-function isOpenClawUpgradeMaintenance(text: string, toolName?: string, toolAction?: string): boolean {
+function isOpenClawUpgradeMaintenance(
+  text: string,
+  toolName?: string,
+  toolAction?: string,
+  promptText?: string,
+): boolean {
   const normalized = normalizePluginProtectionText(text);
-  const normalizedPathText = normalizeGuardPath(normalized);
+  const normalizedPromptText = normalizePluginProtectionText(promptText ?? "");
+  const normalizedPathText = normalizeGuardPath(`${normalized} ${normalizedPromptText}`);
   const normalizedToolName = (toolName ?? "").trim().toLowerCase();
-  const combined = `${normalized} ${normalizedToolName} ${(toolAction ?? "").trim().toLowerCase()}`;
+  const combined = `${normalized} ${normalizedPromptText} ${normalizedToolName} ${(toolAction ?? "").trim().toLowerCase()}`;
 
   const hasMaintenanceIntent = OPENCLAW_UPGRADE_MAINTENANCE_INTENT_PATTERNS.some((pattern) => pattern.test(combined));
   if (!hasMaintenanceIntent) {
@@ -1940,7 +1947,12 @@ export function guardToolCall(
   const atMs = Date.now();
   const protectedAccess = detectProtectedFileAccess(combined, toolName);
   const intentScopedProtectedAccess = scopeProtectedAccessByIntent(protectedAccess, combined);
-  const openClawUpgradeMaintenance = isOpenClawUpgradeMaintenance(combined, normalizedToolName, normalizedToolAction);
+  const openClawUpgradeMaintenance = isOpenClawUpgradeMaintenance(
+    combined,
+    normalizedToolName,
+    normalizedToolAction,
+    context?.promptText,
+  );
   const effectiveProtectedAccess = getEffectiveProtectedAccessForToolRisk(
     intentScopedProtectedAccess,
     openClawUpgradeMaintenance,

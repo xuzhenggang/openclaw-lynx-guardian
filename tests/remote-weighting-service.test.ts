@@ -264,6 +264,25 @@ describe("guardToolCall OpenClaw upgrade maintenance", () => {
     expect(decision.block).toBe(true);
     expect(decision.riskAssessment.modules).toContain("M3:over_agency");
   });
+
+  it("allows gateway restart commands when the original prompt is plugin update maintenance", () => {
+    const decision = guardToolCall(
+      "exec",
+      {
+        command: "kill 7 && sleep 2 && cd /home/node/.openclaw && node /app/dist/index.js gateway --bind lan --port 18789 &",
+        background: true,
+      },
+      undefined,
+      {
+        requesterId: "openclaw-control-ui",
+        channel: "webchat",
+        promptText: "帮我更新lynx插件并重启，https://github.com/shouxuai/openclaw-lynx-guardian/tree/release/v1.3，版本号没有变只有bugfix",
+      },
+    );
+
+    expect(decision.block).toBe(false);
+    expect(decision.riskAssessment.modules).not.toContain("M3:system_availability");
+  });
 });
 
 describe("benign protected-file reads", () => {
